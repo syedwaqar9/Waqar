@@ -18,18 +18,23 @@ async function fsEnsure(): Promise<void> {
   await fs.mkdir(WEEKS_DIR, { recursive: true });
 }
 async function fsList(): Promise<Week[]> {
-  await fsEnsure();
-  const files = await fs.readdir(WEEKS_DIR);
-  const weeks: Week[] = [];
-  for (const f of files) {
-    if (!f.endsWith(".json")) continue;
-    try {
-      weeks.push(JSON.parse(await fs.readFile(path.join(WEEKS_DIR, f), "utf8")));
-    } catch {
-      // skip corrupt file
+  try {
+    await fsEnsure();
+    const files = await fs.readdir(WEEKS_DIR);
+    const weeks: Week[] = [];
+    for (const f of files) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        weeks.push(JSON.parse(await fs.readFile(path.join(WEEKS_DIR, f), "utf8")));
+      } catch {
+        // skip corrupt file
+      }
     }
+    return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch {
+    // Read-only filesystem (e.g. Vercel without Blob configured). Degrade to empty.
+    return [];
   }
-  return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 async function fsGet(id: string): Promise<Week | null> {
   await fsEnsure();
@@ -40,8 +45,17 @@ async function fsGet(id: string): Promise<Week | null> {
   }
 }
 async function fsSave(week: Week): Promise<void> {
-  await fsEnsure();
-  await fs.writeFile(path.join(WEEKS_DIR, `${week.id}.json`), JSON.stringify(week, null, 2), "utf8");
+  try {
+    await fsEnsure();
+    await fs.writeFile(path.join(WEEKS_DIR, `${week.id}.json`), JSON.stringify(week, null, 2), "utf8");
+  } catch (e) {
+    if (process.env.VERCEL) {
+      throw new Error(
+        "Storage is not configured. Add Vercel Blob to this project (Storage tab) so content can be saved, then redeploy.",
+      );
+    }
+    throw e;
+  }
 }
 async function fsDel(id: string): Promise<void> {
   await fsEnsure();
