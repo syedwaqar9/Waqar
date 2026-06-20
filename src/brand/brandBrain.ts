@@ -200,7 +200,7 @@ export const POST_TYPES: Record<
   founder_moment: {
     label: "Founder Moment",
     description:
-      "Jaya's voice: honest, specific, mission-level. Frames the week's content into the larger problem IAIMS is solving. No unsourced stats. Use 'In our assessment' for observational claims.",
+      "Jaya's first-person, mission-level voice (I or we). A short reflection on why this work matters, NOT a regulation alert. The eyebrow must be a mission or founder label (for example FOUNDER NOTE or WHY THIS MATTERS), never an 'X ALERT' label. Frame the week's theme into the larger problem IAIMS is solving. No unsourced stats. Use 'In our assessment' for observational claims.",
     defaultFormat: "single",
     icps: ["grant_officer", "accelerator_university"],
   },

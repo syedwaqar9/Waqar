@@ -253,6 +253,10 @@ async function generatePost(
   const reshareNote = spec.reshareBy
     ? `This is a Jaya reshare. Also write "reshareCommentary": a short first-person line in Jaya Kandaswamy's voice (${ORG.founderTitle}), honest and specific, using "${VOICE.hedges.observation}" for any observational claim.`
     : `Not a reshare. Leave reshareCommentary empty.`;
+  const typeNote =
+    spec.type === "founder_moment"
+      ? `This is a Founder Moment. Write in Jaya's first-person, mission-level voice (I or we), a reflection on why this matters, not a news alert. The eyebrow must be a mission or founder label, never an "ALERT" label. No unsourced statistics.`
+      : "";
 
   const user = `Create the ${POST_TYPES[spec.type].label} for ${spec.day}, ${longLabel(
     addDays(startDate, spec.dayIndex),
@@ -264,6 +268,7 @@ Geography: ${spec.geography}
 Target ICPs: ${spec.icps.map((k) => ICPS[k].label).join(", ")}.
 Type guidance: ${POST_TYPES[spec.type].description}
 ${reshareNote}
+${typeNote}
 
 This week's verified research (cite from here and from the verified facts only):
 ${research}
@@ -279,7 +284,7 @@ ${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
   const draft = await completeJSON<PostDraft>({
     system: brandSystemPrompt(),
     user,
-    maxTokens: 4000,
+    maxTokens: spec.format === "carousel" ? 8000 : 4500,
   });
   return draftToPost(draft, spec, weekId, startDate);
 }
@@ -334,24 +339,25 @@ export async function runWeek(weekId: string): Promise<void> {
     const instructions = await getInstructions();
 
     for (const spec of specs) {
-      let post: Post;
-      try {
-        post = await generatePost(
-          spec,
-          research,
-          weekId,
-          startDate,
-          customRulesText(instructions, spec.type, spec.icps),
-        );
-      } catch (e) {
-        post = draftToPost(
-          { caption: `Draft failed to generate: ${(e as Error).message}. Regenerate this post.` },
-          spec,
-          weekId,
-          startDate,
-        );
+      const rules = customRulesText(instructions, spec.type, spec.icps);
+      let post: Post | null = null;
+      let lastErr = "";
+      for (let attempt = 0; attempt < 3 && !post; attempt++) {
+        try {
+          post = await generatePost(spec, research, weekId, startDate, rules);
+        } catch (e) {
+          lastErr = (e as Error).message;
+        }
       }
-      week.posts.push(post);
+      week.posts.push(
+        post ||
+          draftToPost(
+            { caption: `Draft failed to generate after retries: ${lastErr}. Regenerate this post.` },
+            spec,
+            weekId,
+            startDate,
+          ),
+      );
       await saveWeek(week); // incremental: posts appear as they finish
     }
 

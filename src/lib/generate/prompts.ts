@@ -101,4 +101,6 @@ export const POST_JSON_SHAPE = `Return JSON with this shape:
       "sourceLabel": string
     }
   ]
-}`;
+}
+
+Output valid JSON only. Every string value, including each hashtag, must be wrapped in double quotes. No trailing commas, no comments, and no text outside the JSON.`;
