@@ -1,4 +1,4 @@
-# IAIMS Content Studio
+# Sunnyvale
 
 Internal content OS for IAIMS LinkedIn growth. It researches and verifies the week's
 AI-regulation news, drafts five on-brand posts and carousels, renders the 1080x1080

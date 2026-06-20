@@ -14,9 +14,9 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="mark">IA</div>
+        <div className="mark">S</div>
         <div>
-          <div className="name">Content Studio</div>
+          <div className="name">Sunnyvale</div>
           <div className="sub">IAIMS · LinkedIn</div>
         </div>
       </div>

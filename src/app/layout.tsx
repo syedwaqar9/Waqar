@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "IAIMS Content Studio",
-  description: "Internal content OS for IAIMS LinkedIn growth.",
+  title: "Sunnyvale",
+  description: "Sunnyvale. Internal content OS for IAIMS LinkedIn growth.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
