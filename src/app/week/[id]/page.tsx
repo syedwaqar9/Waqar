@@ -3,6 +3,7 @@ import { getWeek } from "@/lib/store";
 import { postSVGs } from "@/lib/render/svg";
 import PostCard from "@/components/PostCard";
 import SendToJaya from "@/components/SendToJaya";
+import GeneratingWatcher from "@/components/GeneratingWatcher";
 
 export const dynamic = "force-dynamic";
 
@@ -40,14 +41,37 @@ export default async function WeekPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
       <div className="main-pad">
-        {week.theme && (
+        {week.status === "generating" && (
+          <>
+            <GeneratingWatcher />
+            <div className="genbanner">
+              <div className="spinner" />
+              <div style={{ flex: 1 }}>
+                <div className="loader-title">Building this week</div>
+                <div className="loader-stage">
+                  Drafted {week.posts.length} of 5. You can leave this page, it keeps building in the background.
+                </div>
+                <div className="bar">
+                  <div className="bar-fill" style={{ width: `${Math.max(8, (week.posts.length / 5) * 100)}%` }} />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+        {week.theme && !week.theme.startsWith("Generation error") && (
           <p className="muted" style={{ marginTop: 0 }}>
             Geography mix: {week.theme}
           </p>
         )}
+        {week.theme.startsWith("Generation error") && (
+          <p style={{ color: "var(--red)", marginTop: 0 }}>{week.theme}</p>
+        )}
         {items.map((it) => (
           <PostCard key={it.post.id} post={it.post} svgs={it.svgs} weekId={week.id} />
         ))}
+        {week.status !== "generating" && items.length === 0 && (
+          <div className="empty">No posts generated. Try Generate again.</div>
+        )}
       </div>
     </>
   );

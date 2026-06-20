@@ -13,7 +13,7 @@ import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
 import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
-import { listWeeks, saveWeek } from "@/lib/store";
+import { getWeek, listWeeks, saveWeek } from "@/lib/store";
 import type {
   ICP,
   Post,
@@ -263,56 +263,82 @@ ${POST_JSON_SHAPE}`;
   return draftToPost(draft, spec, weekId, startDate);
 }
 
-// ── Weekly run ───────────────────────────────────────────────────────────────
-export async function generateWeek(opts?: { startDate?: Date }): Promise<Week> {
+// ── Weekly run (background-safe) ─────────────────────────────────────────────
+// startWeek saves an empty placeholder immediately so it shows in the inbox and
+// has an id. runWeek does the slow work and saves after each post, so progress
+// is visible and the job is decoupled from the browser. generateWeek runs both
+// (used by the cron).
+export async function startWeek(opts?: { startDate?: Date }): Promise<Week> {
   const startDate = opts?.startDate || nextMonday();
-  const weekId = nanoid(10);
-
-  const existing = await listWeeks();
-  const existingTopics = existing.flatMap((w) => w.posts.map((p) => p.topic)).slice(0, 60);
-
-  const { sunday, saturday } = lastWeekRange();
-  const research = (
-    await researchWeb(
-      `Find the most important AI governance and AI regulation developments published LAST WEEK, between ${longLabel(
-        sunday,
-      )} and ${longLabel(
-        saturday,
-      )} (Sunday to Saturday). Cover EU (AI Act, Omnibus), US federal (FTC, executive actions), US state AI laws, sector rules (healthcare FDA, financial services), and global standards (NIST AI RMF, ISO 42001). For each item give the specific date, what changed, the source URL, and why it matters for compliance evidence. Be precise with statutes and dates. If an older rule has a deadline or enforcement moment landing in or just after this window, include it and say so.`,
-    )
-  ).summary;
-
-  const specs = await planWeek(startDate, research, existingTopics);
-
-  const posts: Post[] = [];
-  for (const spec of specs) {
-    try {
-      posts.push(await generatePost(spec, research, weekId, startDate));
-    } catch (e) {
-      // Keep the week resilient: insert a placeholder the user can regenerate.
-      posts.push(
-        draftToPost(
-          { caption: `Draft failed to generate: ${(e as Error).message}. Regenerate this post.` },
-          spec,
-          weekId,
-          startDate,
-        ),
-      );
-    }
-  }
-
   const week: Week = {
-    id: weekId,
+    id: nanoid(10),
     label: `Week of ${longLabel(startDate)}`,
     startDate: isoDate(startDate),
-    status: "in_review",
-    theme: specs.map((s) => s.geography).filter(Boolean).join(" · "),
+    status: "generating",
+    theme: "",
     source: "auto",
-    posts,
+    posts: [],
     createdAt: new Date().toISOString(),
   };
   await saveWeek(week);
   return week;
+}
+
+export async function runWeek(weekId: string): Promise<void> {
+  const week = await getWeek(weekId);
+  if (!week) return;
+  const startDate = new Date(week.startDate);
+  try {
+    const existing = await listWeeks();
+    const existingTopics = existing
+      .filter((w) => w.id !== weekId)
+      .flatMap((w) => w.posts.map((p) => p.topic))
+      .slice(0, 60);
+
+    const { sunday, saturday } = lastWeekRange();
+    const research = (
+      await researchWeb(
+        `Find the most important AI governance and AI regulation developments published LAST WEEK, between ${longLabel(
+          sunday,
+        )} and ${longLabel(
+          saturday,
+        )} (Sunday to Saturday). Cover EU (AI Act, Omnibus), US federal (FTC, executive actions), US state AI laws, sector rules (healthcare FDA, financial services), and global standards (NIST AI RMF, ISO 42001). For each item give the specific date, what changed, the source URL, and why it matters for compliance evidence. Be precise with statutes and dates. If an older rule has a deadline or enforcement moment landing in or just after this window, include it and say so.`,
+      )
+    ).summary;
+
+    const specs = await planWeek(startDate, research, existingTopics);
+    week.theme = specs.map((s) => s.geography).filter(Boolean).join(" · ");
+    await saveWeek(week);
+
+    for (const spec of specs) {
+      let post: Post;
+      try {
+        post = await generatePost(spec, research, weekId, startDate);
+      } catch (e) {
+        post = draftToPost(
+          { caption: `Draft failed to generate: ${(e as Error).message}. Regenerate this post.` },
+          spec,
+          weekId,
+          startDate,
+        );
+      }
+      week.posts.push(post);
+      await saveWeek(week); // incremental: posts appear as they finish
+    }
+
+    week.status = "in_review";
+    await saveWeek(week);
+  } catch (e) {
+    week.status = "in_review";
+    week.theme = week.theme || `Generation error: ${(e as Error).message}`;
+    await saveWeek(week);
+  }
+}
+
+export async function generateWeek(opts?: { startDate?: Date }): Promise<Week> {
+  const week = await startWeek(opts);
+  await runWeek(week.id);
+  return (await getWeek(week.id)) || week;
 }
 
 // ── Revision (Claude applies a reviewer note) ────────────────────────────────

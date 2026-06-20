@@ -212,3 +212,12 @@ textarea:focus, input:focus, select:focus { outline: none; border-color: var(--a
 }
 .commentbox .lbl { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted-2); font-weight: 700; }
 .commentbox .fc { margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--text); white-space: pre-line; }
+
+/* Generating banner on the week page */
+.genbanner {
+  display: flex; gap: 16px; align-items: center;
+  padding: 18px 20px; margin-bottom: 18px;
+  border: 1px solid var(--border-2); border-radius: 14px; background: var(--panel);
+}
+.genbanner .spinner { margin: 0; width: 28px; height: 28px; }
+.genbanner .bar { max-width: 320px; margin: 10px 0 0; }
