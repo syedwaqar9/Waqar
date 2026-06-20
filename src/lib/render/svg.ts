@@ -135,7 +135,7 @@ function headlineBlock(
 
 function subheadBlock(text: string | undefined, p: Palette, startY: number, accent = true): { svg: string; endY: number } {
   if (!text) return { svg: "", endY: startY };
-  const lines = wrap(text, 44).slice(0, 4);
+  const lines = wrap(text, 44).slice(0, 3);
   const size = 30;
   const lh = Math.round(size * 1.3);
   let y = startY + 40 + size;
@@ -175,7 +175,8 @@ export function singleSVG(v: SingleVisual): string {
   inner += head.svg;
   const sub = subheadBlock(v.subhead, p, head.endY, true);
   inner += sub.svg;
-  if (v.cta) inner += ctaButton(v.cta, p, Math.min(820, sub.endY + 60));
+  // No CTA button on single images: the brand mark already carries the URL and
+  // the caption carries the action, so a button here only collides with copy.
   inner += brandMark(p);
   inner += bottomRight(v.sourceLabel || "", p);
   return frame(p, inner);
@@ -255,7 +256,8 @@ export function slideSVG(slide: Slide, total: number): string {
     inner += head.svg;
     const sub = subheadBlock(slide.subhead, p, head.endY, false);
     inner += sub.svg;
-    inner += ctaButton(slide.cta || "Follow along at iaimscience.org", p, Math.min(840, sub.endY + 50));
+    const ty = sub.endY + 44;
+    if (ty <= 884) inner += ctaButton(slide.cta || "Follow along at iaimscience.org", p, ty);
   } else {
     // hook or statement
     const start = slide.layout === "hook" ? 76 : 64;
@@ -263,7 +265,8 @@ export function slideSVG(slide: Slide, total: number): string {
     inner += head.svg;
     const sub = subheadBlock(slide.subhead, p, head.endY, true);
     inner += sub.svg;
-    if (slide.layout === "hook") inner += ctaButton(slide.cta || "Swipe for the breakdown", p, Math.min(840, sub.endY + 50));
+    const ty = sub.endY + 44;
+    if (slide.layout === "hook" && ty <= 884) inner += ctaButton(slide.cta || "Swipe for the breakdown", p, ty);
   }
 
   inner += brandMark(p);
