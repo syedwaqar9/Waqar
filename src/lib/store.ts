@@ -5,7 +5,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import type { Post, Week } from "@/lib/types";
+import type { Instruction, Post, Week } from "@/lib/types";
 
 // Read at call time so a freshly added env var is picked up without surprises.
 function useBlob(): boolean {
@@ -178,4 +178,53 @@ export async function updatePost(
   mutate(post);
   await saveWeek(week);
   return { week, post };
+}
+
+// ── Instructions (custom rules) ──────────────────────────────────────────────
+const INSTRUCTIONS_PATH = "config/instructions.json";
+
+async function fsReadInstructions(): Promise<Instruction[]> {
+  try {
+    return JSON.parse(await fs.readFile(path.join(DATA_DIR, "config", "instructions.json"), "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function fsWriteInstructions(list: Instruction[]): Promise<void> {
+  await fs.mkdir(path.join(DATA_DIR, "config"), { recursive: true });
+  await fs.writeFile(
+    path.join(DATA_DIR, "config", "instructions.json"),
+    JSON.stringify(list, null, 2),
+    "utf8",
+  );
+}
+async function blobReadInstructions(): Promise<Instruction[]> {
+  try {
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: INSTRUCTIONS_PATH, token: blobToken() });
+    const b = blobs.find((x) => x.pathname === INSTRUCTIONS_PATH) || blobs[0];
+    if (!b) return [];
+    const r = await fetch(`${b.url}?t=${Date.now()}`, { cache: "no-store" });
+    return r.ok ? ((await r.json()) as Instruction[]) : [];
+  } catch {
+    return [];
+  }
+}
+async function blobWriteInstructions(list: Instruction[]): Promise<void> {
+  const { put } = await import("@vercel/blob");
+  await put(INSTRUCTIONS_PATH, JSON.stringify(list), {
+    access: BLOB_ACCESS,
+    token: blobToken(),
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
+
+export async function getInstructions(): Promise<Instruction[]> {
+  return useBlob() ? blobReadInstructions() : fsReadInstructions();
+}
+export async function saveInstructions(list: Instruction[]): Promise<void> {
+  if (useBlob()) await blobWriteInstructions(list);
+  else await fsWriteInstructions(list);
 }

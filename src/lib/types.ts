@@ -162,3 +162,16 @@ export interface Fact {
   doNotCite?: string; // explicit guard, e.g. stale Colorado date
   supersededBy?: string;
 }
+
+// A custom rule the generator must follow. Added in the Instructions tab, by
+// typing, uploading a file, pasting a link, or giving an example post.
+export interface Instruction {
+  id: string;
+  title: string;
+  body: string; // the rule(s) the writer must follow
+  source: "typed" | "file" | "link" | "example";
+  postType?: PostType; // optional targeting; undefined = all types
+  icp?: ICP; // optional targeting; undefined = all ICPs
+  enabled: boolean;
+  createdAt: string;
+}

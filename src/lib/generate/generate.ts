@@ -13,9 +13,10 @@ import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
 import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
-import { getWeek, listWeeks, saveWeek } from "@/lib/store";
+import { getInstructions, getWeek, listWeeks, saveWeek } from "@/lib/store";
 import type {
   ICP,
+  Instruction,
   Post,
   PostFormat,
   PostType,
@@ -49,6 +50,25 @@ function blockedFactsText(): string {
   return SEED_FACTS.filter((f) => f.status === "blocked")
     .map((f) => `- ${f.doNotCite}`)
     .join("\n");
+}
+
+// Custom rules from the Instructions tab that apply to this post (global, or
+// targeted to this post type / ICP).
+function customRulesText(instructions: Instruction[], type: PostType, icps: ICP[]): string {
+  const relevant = instructions.filter(
+    (i) =>
+      i.enabled &&
+      (!i.postType || i.postType === type) &&
+      (!i.icp || icps.includes(i.icp)),
+  );
+  if (!relevant.length) return "";
+  return relevant.map((i) => `- ${i.body}`).join("\n");
+}
+
+function rulesBlock(customRules: string): string {
+  return customRules
+    ? `CUSTOM INSTRUCTIONS FROM THE GROWTH ADVISOR (must follow; these win if they conflict with defaults):\n${customRules}\n\n`
+    : "";
 }
 
 function coerceICPs(raw: unknown, fallback: ICP[]): ICP[] {
@@ -228,6 +248,7 @@ async function generatePost(
   research: string,
   weekId: string,
   startDate: Date,
+  customRules: string,
 ): Promise<Post> {
   const reshareNote = spec.reshareBy
     ? `This is a Jaya reshare. Also write "reshareCommentary": a short first-person line in Jaya Kandaswamy's voice (${ORG.founderTitle}), honest and specific, using "${VOICE.hedges.observation}" for any observational claim.`
@@ -253,7 +274,7 @@ ${activeFactsText()}
 Never cite:
 ${blockedFactsText()}
 
-${POST_JSON_SHAPE}`;
+${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const draft = await completeJSON<PostDraft>({
     system: brandSystemPrompt(),
@@ -310,10 +331,18 @@ export async function runWeek(weekId: string): Promise<void> {
     week.theme = specs.map((s) => s.geography).filter(Boolean).join(" · ");
     await saveWeek(week);
 
+    const instructions = await getInstructions();
+
     for (const spec of specs) {
       let post: Post;
       try {
-        post = await generatePost(spec, research, weekId, startDate);
+        post = await generatePost(
+          spec,
+          research,
+          weekId,
+          startDate,
+          customRulesText(instructions, spec.type, spec.icps),
+        );
       } catch (e) {
         post = draftToPost(
           { caption: `Draft failed to generate: ${(e as Error).message}. Regenerate this post.` },
@@ -343,6 +372,8 @@ export async function generateWeek(opts?: { startDate?: Date }): Promise<Week> {
 
 // ── Revision (Claude applies a reviewer note) ────────────────────────────────
 export async function revisePost(post: Post, note: string, by: "jaya" | "waqar"): Promise<Post> {
+  const instructions = await getInstructions();
+  const customRules = customRulesText(instructions, post.type, post.icps);
   const user = `Revise this ${POST_TYPES[post.type].label} based on the reviewer note. Keep the format (${post.format}) and the same JSON shape. Apply the note precisely, keep everything else intact, and keep all the hard voice rules.
 
 Reviewer note (${by}): ${note}
@@ -364,7 +395,7 @@ ${JSON.stringify(
   2,
 )}
 
-${POST_JSON_SHAPE}`;
+${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const draft = await completeJSON<PostDraft>({
     system: brandSystemPrompt(),
@@ -418,6 +449,12 @@ export async function generateFromUpload(input: {
   const startDate = nextMonday();
   const weekId = nanoid(10);
 
+  const instructions = await getInstructions();
+  const customRules = customRulesText(instructions, "founder_moment", [
+    "grant_officer",
+    "accelerator_university",
+  ]);
+
   const instruction = `Create an on-brand LinkedIn ${input.format}${
     input.format === "carousel" ? " (7 slides)" : ""
   } from the material I am giving you. This is likely a company update such as a partnership, milestone, or announcement, not a regulation news item.
@@ -426,7 +463,7 @@ export async function generateFromUpload(input: {
 - Only include the "sources" array if there is a public source. A private screenshot is not a source.
 ${input.note ? `\nMy note about it: ${input.note}` : ""}
 
-${POST_JSON_SHAPE}`;
+${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const content: Anthropic_ContentBlock[] = [];
   if (input.imageBase64 && input.mediaType) {
@@ -481,3 +518,67 @@ type Anthropic_ContentBlock =
       type: "image";
       source: { type: "base64"; media_type: string; data: string };
     };
+
+// Turn an uploaded file, a link, or an example post into a concise rule.
+export async function extractInstruction(input: {
+  kind: "file" | "link" | "example";
+  text?: string;
+  url?: string;
+  imageBase64?: string;
+  mediaType?: string;
+}): Promise<{ title: string; body: string }> {
+  const client = getClient();
+  let material = "";
+  const content: unknown[] = [];
+
+  if (input.kind === "link" && input.url) {
+    try {
+      const html = await (await fetch(input.url)).text();
+      material = html
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .slice(0, 8000);
+    } catch {
+      material = `(could not fetch ${input.url})`;
+    }
+  } else if (input.kind === "example" && input.text) {
+    material = input.text.slice(0, 6000);
+  } else if (input.kind === "file") {
+    if (input.imageBase64 && input.mediaType?.startsWith("image/")) {
+      content.push({
+        type: "image",
+        source: { type: "base64", media_type: input.mediaType, data: input.imageBase64 },
+      });
+    } else if (input.imageBase64 && input.mediaType === "application/pdf") {
+      content.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: input.imageBase64 },
+      });
+    } else if (input.text) {
+      material = input.text.slice(0, 8000);
+    }
+  }
+
+  const ask =
+    input.kind === "example"
+      ? "Study this example post and extract durable STYLE rules our writer should follow to match its tone and structure. Do not copy its facts."
+      : "Extract durable content rules (guidance) from this material for our LinkedIn content.";
+
+  content.push({
+    type: "text",
+    text: `${ask}
+${material ? `\nMaterial:\n${material}\n` : ""}
+Return JSON: { "title": string (3 to 6 words), "body": string (1 to 5 short imperative lines the writer must follow, no preamble) }.`,
+  });
+
+  const res = await client.messages.create({
+    model: MODEL,
+    max_tokens: 1200,
+    system: "You write concise, durable content rules. Respond with valid JSON only.",
+    messages: [{ role: "user", content: content as never }],
+  });
+  const parsed = looseJSON<{ title?: string; body?: string }>(textOf(res.content));
+  return { title: (parsed.title || "Custom rule").slice(0, 80), body: parsed.body || "" };
+}
