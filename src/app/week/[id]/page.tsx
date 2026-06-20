@@ -16,9 +16,20 @@ export default async function WeekPage({ params }: { params: Promise<{ id: strin
     return (
       <>
         <div className="topbar">
-          <h1>Not found</h1>
+          <h1>Loading week</h1>
         </div>
-        <div className="main-pad">This week does not exist.</div>
+        <div className="main-pad">
+          <GeneratingWatcher />
+          <div className="genbanner">
+            <div className="spinner" />
+            <div style={{ flex: 1 }}>
+              <div className="loader-title">Preparing this week</div>
+              <div className="loader-stage">
+                This refreshes automatically. If it does not load in a few seconds, go back to the Inbox.
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     );
   }

@@ -90,14 +90,12 @@ async function blobSave(week: Week): Promise<void> {
   });
 }
 
-// Read straight from origin (useCache: false) so edits are never stale.
-async function blobRead(pathname: string): Promise<Week | null> {
+// Read a public blob by its URL. The ?t cache-bust guarantees fresh content
+// after an overwrite at the same pathname.
+async function blobReadByUrl(url: string): Promise<Week | null> {
   try {
-    const { get } = await import("@vercel/blob");
-    const res = await get(pathname, { access: BLOB_ACCESS, token: blobToken(), useCache: false });
-    if (!res || !res.stream) return null;
-    const text = await new Response(res.stream).text();
-    return JSON.parse(text) as Week;
+    const r = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+    return r.ok ? ((await r.json()) as Week) : null;
   } catch {
     return null;
   }
@@ -109,7 +107,7 @@ async function blobList(): Promise<Week[]> {
     const { blobs } = await list({ prefix: "weeks/", token: blobToken() });
     const weeks: Week[] = [];
     for (const b of blobs) {
-      const w = await blobRead(b.pathname);
+      const w = await blobReadByUrl(b.url);
       if (w) weeks.push(w);
     }
     return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -118,8 +116,24 @@ async function blobList(): Promise<Week[]> {
   }
 }
 
+// Resolve a week by id. Retries briefly to cover read-after-write propagation
+// right after a placeholder is created.
 async function blobGet(id: string): Promise<Week | null> {
-  return blobRead(blobPath(id));
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const { list } = await import("@vercel/blob");
+      const { blobs } = await list({ prefix: blobPath(id), token: blobToken() });
+      const b = blobs.find((x) => x.pathname === blobPath(id)) || blobs[0];
+      if (b) {
+        const w = await blobReadByUrl(b.url);
+        if (w) return w;
+      }
+    } catch {
+      // fall through to retry
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
 }
 
 async function blobDel(id: string): Promise<void> {
