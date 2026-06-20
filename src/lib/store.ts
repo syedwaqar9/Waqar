@@ -92,10 +92,10 @@ async function blobSave(week: Week): Promise<void> {
 
 // Read straight from origin (useCache: false) so edits are never stale.
 async function blobRead(pathname: string): Promise<Week | null> {
-  const { get } = await import("@vercel/blob");
-  const res = await get(pathname, { access: BLOB_ACCESS, token: blobToken(), useCache: false });
-  if (!res || !res.stream) return null;
   try {
+    const { get } = await import("@vercel/blob");
+    const res = await get(pathname, { access: BLOB_ACCESS, token: blobToken(), useCache: false });
+    if (!res || !res.stream) return null;
     const text = await new Response(res.stream).text();
     return JSON.parse(text) as Week;
   } catch {
@@ -104,14 +104,18 @@ async function blobRead(pathname: string): Promise<Week | null> {
 }
 
 async function blobList(): Promise<Week[]> {
-  const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: "weeks/", token: blobToken() });
-  const weeks: Week[] = [];
-  for (const b of blobs) {
-    const w = await blobRead(b.pathname);
-    if (w) weeks.push(w);
+  try {
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: "weeks/", token: blobToken() });
+    const weeks: Week[] = [];
+    for (const b of blobs) {
+      const w = await blobRead(b.pathname);
+      if (w) weeks.push(w);
+    }
+    return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch {
+    return [];
   }
-  return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 async function blobGet(id: string): Promise<Week | null> {
