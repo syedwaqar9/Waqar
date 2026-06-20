@@ -1,0 +1,28 @@
+{
+  "name": "iaims-content-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Internal content OS for IAIMS LinkedIn growth: researches and verifies AI-regulation news, drafts a week of on-brand posts and carousels, renders 1080x1080 assets, and runs the in-tool review and approval loop.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "nanoid": "^5.0.9",
+    "next": "^15.1.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "typescript": "^5.7.3"
+  }
+}
