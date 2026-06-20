@@ -12,7 +12,7 @@ import { completeJSON, getClient, textOf, MODEL } from "@/lib/anthropic";
 import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
-import { addDays, isoDate, longLabel, nextMonday } from "@/lib/dates";
+import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
 import { listWeeks, saveWeek } from "@/lib/store";
 import type {
   ICP,
@@ -267,11 +267,14 @@ export async function generateWeek(opts?: { startDate?: Date }): Promise<Week> {
   const existing = await listWeeks();
   const existingTopics = existing.flatMap((w) => w.posts.map((p) => p.topic)).slice(0, 60);
 
+  const { sunday, saturday } = lastWeekRange();
   const research = (
     await researchWeb(
-      `Find the most important AI governance and AI regulation developments from roughly the last two weeks, as of ${longLabel(
-        startDate,
-      )}. Cover EU (AI Act, Omnibus), US federal (FTC, executive actions), US state AI laws, sector rules (healthcare FDA, financial services), and global standards (NIST AI RMF, ISO 42001). For each, give the specific date, what changed, the source, and why it matters for compliance evidence. Be precise with statutes and dates.`,
+      `Find the most important AI governance and AI regulation developments published LAST WEEK, between ${longLabel(
+        sunday,
+      )} and ${longLabel(
+        saturday,
+      )} (Sunday to Saturday). Cover EU (AI Act, Omnibus), US federal (FTC, executive actions), US state AI laws, sector rules (healthcare FDA, financial services), and global standards (NIST AI RMF, ISO 42001). For each item give the specific date, what changed, the source URL, and why it matters for compliance evidence. Be precise with statutes and dates. If an older rule has a deadline or enforcement moment landing in or just after this window, include it and say so.`,
     )
   ).summary;
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getWeek } from "@/lib/store";
 import { postSVGs } from "@/lib/render/svg";
 import PostCard from "@/components/PostCard";
+import SendToJaya from "@/components/SendToJaya";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,10 @@ export default async function WeekPage({ params }: { params: Promise<{ id: strin
           </Link>{" "}
           / {week.label}
         </h1>
-        <span className={`chip s-${week.status}`}>{week.status.replace("_", " ")}</span>
+        <div className="row">
+          <SendToJaya weekId={week.id} />
+          <span className={`chip s-${week.status}`}>{week.status.replace("_", " ")}</span>
+        </div>
       </div>
       <div className="main-pad">
         {week.theme && (

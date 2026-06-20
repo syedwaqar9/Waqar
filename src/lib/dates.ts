@@ -19,3 +19,13 @@ export function isoDate(d: Date): string {
 export function longLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
+
+// Most recent completed week, Sunday to Saturday, relative to `from`.
+// Used so "next week's content" is researched from last week's news.
+export function lastWeekRange(from = new Date()): { sunday: Date; saturday: Date } {
+  const d = new Date(from);
+  const day = d.getDay(); // 0 Sun .. 6 Sat
+  const saturday = addDays(d, -((day + 1) % 7)); // most recent Saturday on or before today
+  const sunday = addDays(saturday, -6);
+  return { sunday, saturday };
+}
