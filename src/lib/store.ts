@@ -68,47 +68,59 @@ async function fsDel(id: string): Promise<void> {
   }
 }
 
-// ── Vercel Blob backend (production) ─────────────────────────────────────────
+// ── Vercel Blob backend (production), SDK v2 ─────────────────────────────────
 const blobPath = (id: string) => `weeks/${id}.json`;
+// Match the store's access mode. Default public; set BLOB_ACCESS=private if the
+// connected store is private.
+const BLOB_ACCESS: "public" | "private" =
+  process.env.BLOB_ACCESS === "private" ? "private" : "public";
+
+function blobToken(): string | undefined {
+  return process.env.BLOB_READ_WRITE_TOKEN;
+}
 
 async function blobSave(week: Week): Promise<void> {
   const { put } = await import("@vercel/blob");
   await put(blobPath(week.id), JSON.stringify(week), {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
+    access: BLOB_ACCESS,
+    token: blobToken(),
     addRandomSuffix: false,
+    allowOverwrite: true,
     contentType: "application/json",
-    cacheControlMaxAge: 0,
   });
 }
-async function blobFetch(url: string): Promise<Week | null> {
+
+// Read straight from origin (useCache: false) so edits are never stale.
+async function blobRead(pathname: string): Promise<Week | null> {
+  const { get } = await import("@vercel/blob");
+  const res = await get(pathname, { access: BLOB_ACCESS, token: blobToken(), useCache: false });
+  if (!res || !res.stream) return null;
   try {
-    const r = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
-    return r.ok ? ((await r.json()) as Week) : null;
+    const text = await new Response(res.stream).text();
+    return JSON.parse(text) as Week;
   } catch {
     return null;
   }
 }
+
 async function blobList(): Promise<Week[]> {
   const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: "weeks/", token: process.env.BLOB_READ_WRITE_TOKEN });
+  const { blobs } = await list({ prefix: "weeks/", token: blobToken() });
   const weeks: Week[] = [];
   for (const b of blobs) {
-    const w = await blobFetch(b.url);
+    const w = await blobRead(b.pathname);
     if (w) weeks.push(w);
   }
   return weeks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
 async function blobGet(id: string): Promise<Week | null> {
-  const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: blobPath(id), token: process.env.BLOB_READ_WRITE_TOKEN });
-  const b = blobs.find((x) => x.pathname === blobPath(id)) || blobs[0];
-  return b ? blobFetch(b.url) : null;
+  return blobRead(blobPath(id));
 }
+
 async function blobDel(id: string): Promise<void> {
-  const { list, del } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: blobPath(id), token: process.env.BLOB_READ_WRITE_TOKEN });
-  for (const b of blobs) await del(b.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+  const { del } = await import("@vercel/blob");
+  await del(blobPath(id), { token: blobToken() });
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
