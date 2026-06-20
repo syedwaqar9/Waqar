@@ -7,8 +7,10 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { Post, Week } from "@/lib/types";
 
-const TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-const useBlob = !!TOKEN;
+// Read at call time so a freshly added env var is picked up without surprises.
+function useBlob(): boolean {
+  return !!process.env.BLOB_READ_WRITE_TOKEN;
+}
 
 // ── Filesystem backend (local) ───────────────────────────────────────────────
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -73,7 +75,7 @@ async function blobSave(week: Week): Promise<void> {
   const { put } = await import("@vercel/blob");
   await put(blobPath(week.id), JSON.stringify(week), {
     access: "public",
-    token: TOKEN,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
     addRandomSuffix: false,
     contentType: "application/json",
     cacheControlMaxAge: 0,
@@ -89,7 +91,7 @@ async function blobFetch(url: string): Promise<Week | null> {
 }
 async function blobList(): Promise<Week[]> {
   const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: "weeks/", token: TOKEN });
+  const { blobs } = await list({ prefix: "weeks/", token: process.env.BLOB_READ_WRITE_TOKEN });
   const weeks: Week[] = [];
   for (const b of blobs) {
     const w = await blobFetch(b.url);
@@ -99,28 +101,28 @@ async function blobList(): Promise<Week[]> {
 }
 async function blobGet(id: string): Promise<Week | null> {
   const { list } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: blobPath(id), token: TOKEN });
+  const { blobs } = await list({ prefix: blobPath(id), token: process.env.BLOB_READ_WRITE_TOKEN });
   const b = blobs.find((x) => x.pathname === blobPath(id)) || blobs[0];
   return b ? blobFetch(b.url) : null;
 }
 async function blobDel(id: string): Promise<void> {
   const { list, del } = await import("@vercel/blob");
-  const { blobs } = await list({ prefix: blobPath(id), token: TOKEN });
-  for (const b of blobs) await del(b.url, { token: TOKEN });
+  const { blobs } = await list({ prefix: blobPath(id), token: process.env.BLOB_READ_WRITE_TOKEN });
+  for (const b of blobs) await del(b.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 export async function listWeeks(): Promise<Week[]> {
-  return useBlob ? blobList() : fsList();
+  return useBlob() ? blobList() : fsList();
 }
 export async function getWeek(id: string): Promise<Week | null> {
-  return useBlob ? blobGet(id) : fsGet(id);
+  return useBlob() ? blobGet(id) : fsGet(id);
 }
 export async function saveWeek(week: Week): Promise<void> {
-  return useBlob ? blobSave(week) : fsSave(week);
+  return useBlob() ? blobSave(week) : fsSave(week);
 }
 export async function deleteWeek(id: string): Promise<void> {
-  return useBlob ? blobDel(id) : fsDel(id);
+  return useBlob() ? blobDel(id) : fsDel(id);
 }
 
 export async function getPost(

@@ -4,6 +4,7 @@ import { postSVGs } from "@/lib/render/svg";
 import PostCard from "@/components/PostCard";
 import SendToJaya from "@/components/SendToJaya";
 import GeneratingWatcher from "@/components/GeneratingWatcher";
+import CopyLink from "@/components/CopyLink";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,7 @@ export default async function WeekPage({ params }: { params: Promise<{ id: strin
           / {week.label}
         </h1>
         <div className="row">
+          <CopyLink />
           <SendToJaya weekId={week.id} />
           <span className={`chip s-${week.status}`}>{week.status.replace("_", " ")}</span>
         </div>

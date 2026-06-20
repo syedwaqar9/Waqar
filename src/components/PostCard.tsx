@@ -258,9 +258,16 @@ export default function PostCard({
             </div>
           )}
 
-          {post.history.length > 0 && (
-            <div className="note">
-              {post.history.length} revision{post.history.length > 1 ? "s" : ""} applied.
+          {post.history.filter((h) => h.note).length > 0 && (
+            <div className="commentbox" style={{ marginTop: 14 }}>
+              <div className="lbl">Review notes</div>
+              {post.history
+                .filter((h) => h.note)
+                .map((h, i) => (
+                  <div key={i} className="fc" style={{ marginTop: 6 }}>
+                    <strong style={{ textTransform: "capitalize" }}>{h.source}</strong>: {h.note}
+                  </div>
+                ))}
             </div>
           )}
         </div>
