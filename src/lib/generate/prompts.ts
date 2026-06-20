@@ -5,6 +5,8 @@ import {
   HASHTAG_POOL,
   MESSAGE_BANK,
   DESIGN,
+  HOOK_PRINCIPLES,
+  HOOK_RUBRIC,
 } from "@/brand/brandBrain";
 
 // The system prompt every generator shares. Encodes the whole voice and the
@@ -30,6 +32,12 @@ ${VOICE.hardRules.map((r) => `- ${r}`).join("\n")}
 - For composite practitioner quotes use "${VOICE.hedges.composite}", never attribute to a real person.
 - The caption MUST end with this exact CTA line on its own line: "${VOICE.cta}"
 - Provide exactly 3 hashtags chosen for the topic. Prefer from: ${HASHTAG_POOL.join(", ")}. Do not put hashtags inside the caption body.
+
+THE HOOK IS THE MOST IMPORTANT PART. The first line of the caption and the accent line of the visual are the hook. Spend the most effort here. Apply these behavioral-science principles:
+${HOOK_PRINCIPLES.map((p) => `- ${p}`).join("\n")}
+Score every hook against this rubric and keep only a hook that scores high on most:
+${HOOK_RUBRIC.map((r) => `- ${r}`).join("\n")}
+Write the strongest possible hook as the opening line. Provide two alternate hooks in "hookOptions" taking different angles (for example one loss-framed, one curiosity-gap, one counterintuitive). Also write "firstComment", a strong comment to post in the first hour that adds a specific resource or a sharp question to drive replies.
 
 CAPTION STRUCTURE:
 ${VOICE.structure.map((s) => `- ${s}`).join("\n")}
@@ -58,7 +66,9 @@ VISUAL GRAMMAR (the renderer draws exactly what you specify):
 export const POST_JSON_SHAPE = `Return JSON with this shape:
 {
   "topic": string,
-  "hook": string,
+  "hook": string,                   // the single strongest hook, used as the opening line
+  "hookOptions": [string, string],  // two alternate hooks, different angles
+  "firstComment": string,           // comment to post in the first hour
   "caption": string,                // full caption, ends with the exact CTA line, no hashtags inside
   "hashtags": [string, string, string],
   "rationale": string,              // one sentence: why this post, for which ICP

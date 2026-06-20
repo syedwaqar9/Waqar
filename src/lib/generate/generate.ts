@@ -126,6 +126,8 @@ icp keys are: ${ICP_KEYS.join(", ")}.`;
 interface PostDraft {
   topic?: string;
   hook?: string;
+  hookOptions?: string[];
+  firstComment?: string;
   caption?: string;
   hashtags?: string[];
   rationale?: string;
@@ -203,7 +205,9 @@ function draftToPost(
     reshareBy: spec.reshareBy,
     status: "in_review",
     topic: draft.topic || spec.topic,
-    hook: draft.hook || "",
+    hook: draft.hook || draft.hookOptions?.[0] || "",
+    hookOptions: Array.isArray(draft.hookOptions) ? draft.hookOptions.slice(0, 3) : undefined,
+    firstComment: draft.firstComment,
     caption: coerceCaption(draft.caption || ""),
     hashtags: coerceHashtags(draft.hashtags),
     cta: VOICE.cta,

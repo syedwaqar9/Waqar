@@ -115,6 +115,8 @@ export interface Post {
   status: PostStatus;
   topic: string;
   hook: string;
+  hookOptions?: string[]; // behavioral-science alternates
+  firstComment?: string; // pre-drafted comment for the first hour
   caption: string;
   hashtags: string[];
   cta: string;

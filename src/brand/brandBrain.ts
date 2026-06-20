@@ -119,6 +119,27 @@ export const MESSAGE_BANK = [
   "Build the evidence layer once. Use it across every framework, every deal, every deadline.",
 ];
 
+// THE HOOK ENGINE
+// The hook is the most important line in any post. If it fails, nothing else is
+// read. Working principles distilled from behavioral science, used to write and
+// score every hook.
+export const HOOK_PRINCIPLES = [
+  "Kahneman (System 1, loss aversion, framing): write for the fast, emotional brain. Frame the stakes as a loss or a risk, not a gain. 'You missed the deadline that was not delayed' beats 'here are the deadlines'. Anchor with one concrete number, date, or dollar amount.",
+  "Berger, Contagious (STEPPS): give social currency so sharing makes the reader look informed, attach to a current trigger, carry high-arousal emotion such as surprise or concern, and promise practical value they can use today.",
+  "Rory Sutherland (psycho-logic): reframe the obvious into the counterintuitive. Make the familiar strange. The reader should feel they are about to learn something most people have wrong.",
+  "Heath brothers, Made to Stick (SUCCESs): Simple, Unexpected (open a curiosity gap, break the pattern), Concrete (name the specific artifact), Credible (a real source), Emotional. Lead with the unexpected, not the context.",
+  "Thaler, Nudge (salience and friction): make the single most important fact impossible to miss, and remove friction to the next step. Salience over completeness.",
+];
+
+export const HOOK_RUBRIC = [
+  "Curiosity gap: does the reader have to keep reading to resolve the tension?",
+  "Stakes: is there a clear loss or risk to ignoring this?",
+  "Concrete: is there a specific number, date, statute, or named artifact?",
+  "Relevance: does it speak to a specific ICP's job?",
+  "Credible: no hype, no banned words, a real source behind it.",
+  "One breath: short enough to read at full scroll speed.",
+];
+
 export const ICPS: Record<
   ICP,
   { label: string; titles: string; cares: string; goal: string }

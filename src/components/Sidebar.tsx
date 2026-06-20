@@ -22,7 +22,10 @@ export default function Sidebar() {
       </div>
       <nav className="nav">
         {LINKS.map((l) => {
-          const active = l.href === "/" ? pathname === "/" : pathname.startsWith(l.href);
+          const active =
+            l.href === "/"
+              ? pathname === "/" || pathname.startsWith("/week")
+              : pathname.startsWith(l.href);
           return (
             <Link key={l.href} href={l.href} className={active ? "active" : ""}>
               <span className="dot" />

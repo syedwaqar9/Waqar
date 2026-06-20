@@ -35,9 +35,17 @@ export default function PostCard({
   const [note, setNote] = useState("");
   const [by, setBy] = useState<"jaya" | "waqar">("jaya");
   const [err, setErr] = useState("");
+  const [copied, setCopied] = useState("");
 
   const errors = (post.lint?.issues || []).filter((i) => i.level === "error");
   const warns = (post.lint?.issues || []).filter((i) => i.level === "warn");
+  const altHooks = (post.hookOptions || []).filter((h) => h && h !== post.hook);
+
+  function copy(text: string, key: string) {
+    navigator.clipboard?.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1500);
+  }
 
   async function approve() {
     setBusy(true);
@@ -57,15 +65,15 @@ export default function PostCard({
     }
   }
 
-  async function submitRevise() {
-    if (!note.trim()) return;
+  async function doRevise(text: string, author: "jaya" | "waqar" = by) {
+    if (!text.trim()) return;
     setBusy(true);
     setErr("");
     try {
       const res = await fetch(`/api/posts/${post.id}/revise`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ weekId, note, by }),
+        body: JSON.stringify({ weekId, note: text, by: author }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       setNote("");
@@ -102,11 +110,7 @@ export default function PostCard({
               <div className="asset-nav">
                 {svgs.length > 1 ? (
                   <div className="row">
-                    <button
-                      className="btn btn-sm"
-                      onClick={() => setSlide((s) => Math.max(0, s - 1))}
-                      disabled={slide === 0}
-                    >
+                    <button className="btn btn-sm" onClick={() => setSlide((s) => Math.max(0, s - 1))} disabled={slide === 0}>
                       ‹
                     </button>
                     <span className="count">
@@ -123,10 +127,7 @@ export default function PostCard({
                 ) : (
                   <span className="count">Single image</span>
                 )}
-                <a
-                  className="btn btn-sm"
-                  href={`/api/render?weekId=${weekId}&postId=${post.id}&slide=${slide}`}
-                >
+                <a className="btn btn-sm" href={`/api/render?weekId=${weekId}&postId=${post.id}&slide=${slide}`}>
                   Download PNG
                 </a>
               </div>
@@ -137,7 +138,39 @@ export default function PostCard({
         </div>
 
         <div className="col">
-          <h4>LinkedIn caption</h4>
+          {(post.hook || altHooks.length > 0) && (
+            <div className="hookbox">
+              <h4>Hook</h4>
+              <div className="hook-cur">{post.hook}</div>
+              {altHooks.length > 0 && (
+                <div className="hook-alts">
+                  <div className="note">Alternates, click to rebuild the post around it:</div>
+                  {altHooks.map((h, i) => (
+                    <button
+                      key={i}
+                      className="btn btn-sm hook-alt"
+                      disabled={busy}
+                      onClick={() =>
+                        doRevise(
+                          `Rewrite this post so it opens with this exact hook, and make the visual headline match it: "${h}". Keep the facts, sources, and format the same.`,
+                          "waqar",
+                        )
+                      }
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h4>LinkedIn caption</h4>
+            <button className="btn btn-ghost btn-sm" onClick={() => copy(post.caption, "cap")}>
+              {copied === "cap" ? "Copied" : "Copy"}
+            </button>
+          </div>
           <div className="caption">{post.caption}</div>
           <div className="tags">
             {post.hashtags.map((t) => (
@@ -151,6 +184,16 @@ export default function PostCard({
             <div className="reshare">
               <div className="lbl">Jaya reshare commentary</div>
               <div className="q">{post.reshareCommentary}</div>
+            </div>
+          ) : null}
+
+          {post.firstComment ? (
+            <div className="commentbox">
+              <div className="lbl">First comment, post within the first hour</div>
+              <div className="fc">{post.firstComment}</div>
+              <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => copy(post.firstComment!, "fc")}>
+                {copied === "fc" ? "Copied" : "Copy"}
+              </button>
             </div>
           ) : null}
 
@@ -188,13 +231,10 @@ export default function PostCard({
             <button className="btn btn-primary btn-sm" onClick={approve} disabled={busy}>
               {post.status === "approved" ? "Approved ✓" : "Approve"}
             </button>
-            <button
-              className="btn btn-sm"
-              onClick={() => setShowRevise((v) => !v)}
-              disabled={busy}
-            >
+            <button className="btn btn-sm" onClick={() => setShowRevise((v) => !v)} disabled={busy}>
               Request changes
             </button>
+            {busy && <span className="note">Working…</span>}
             {err && <span style={{ color: "var(--red)", fontSize: 12 }}>{err}</span>}
           </div>
 
@@ -211,7 +251,7 @@ export default function PostCard({
                   <option value="jaya">As Jaya</option>
                   <option value="waqar">As Waqar</option>
                 </select>
-                <button className="btn btn-primary btn-sm" onClick={submitRevise} disabled={busy || !note.trim()}>
+                <button className="btn btn-primary btn-sm" onClick={() => doRevise(note)} disabled={busy || !note.trim()}>
                   {busy ? "Revising…" : "Submit and revise"}
                 </button>
               </div>
