@@ -65,6 +65,24 @@ export default function PostCard({
     }
   }
 
+  async function regenerate() {
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/posts/${post.id}/regenerate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ weekId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function doRevise(text: string, author: "jaya" | "waqar" = by) {
     if (!text.trim()) return;
     setBusy(true);
@@ -233,6 +251,9 @@ export default function PostCard({
             </button>
             <button className="btn btn-sm" onClick={() => setShowRevise((v) => !v)} disabled={busy}>
               Request changes
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={regenerate} disabled={busy}>
+              Regenerate
             </button>
             {busy && <span className="note">Working…</span>}
             {err && <span style={{ color: "var(--red)", fontSize: 12 }}>{err}</span>}

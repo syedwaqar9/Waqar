@@ -588,3 +588,59 @@ Return JSON: { "title": string (3 to 6 words), "body": string (1 to 5 short impe
   const parsed = looseJSON<{ title?: string; body?: string }>(textOf(res.content));
   return { title: (parsed.title || "Custom rule").slice(0, 80), body: parsed.body || "" };
 }
+
+// Regenerate a single post in place (for a failed or weak draft), keeping its
+// id, comments, and history. Re-researches just this post's topic.
+export async function regeneratePost(weekId: string, postId: string): Promise<Post | null> {
+  const week = await getWeek(weekId);
+  if (!week) return null;
+  const existing = week.posts.find((p) => p.id === postId);
+  if (!existing) return null;
+
+  const startDate = new Date(week.startDate);
+  const spec: DaySpec = {
+    dayIndex: existing.dayIndex,
+    day: existing.day,
+    type: existing.type,
+    format: existing.format,
+    reshareBy: existing.reshareBy,
+    topic: existing.topic,
+    angle: existing.rationale || "",
+    geography: "",
+    icps: existing.icps,
+  };
+
+  const { sunday, saturday } = lastWeekRange();
+  const research = (
+    await researchWeb(
+      `Find the latest verified facts for an IAIMS LinkedIn post on this topic, focused on last week (${longLabel(
+        sunday,
+      )} to ${longLabel(saturday)}): ${existing.topic}. Give specific dates, what changed, and the source URL.`,
+    )
+  ).summary;
+
+  const instructions = await getInstructions();
+  const rules = customRulesText(instructions, spec.type, spec.icps);
+
+  let post: Post | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3 && !post; attempt++) {
+    try {
+      post = await generatePost(spec, research, weekId, startDate, rules);
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
+  }
+  if (!post) {
+    post = draftToPost({ caption: `Regeneration failed: ${lastErr}.` }, spec, weekId, startDate);
+  }
+  post.id = existing.id;
+  post.comments = existing.comments;
+  post.history = existing.history;
+
+  const idx = week.posts.findIndex((p) => p.id === postId);
+  week.posts[idx] = post;
+  if (week.status === "approved") week.status = "in_review";
+  await saveWeek(week);
+  return post;
+}

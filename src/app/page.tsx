@@ -40,12 +40,14 @@ export default async function Home() {
             {weeks.map((w) => {
               const { errors, warns } = lintSummary(w);
               const approved = w.posts.filter((p) => p.status === "approved").length;
+              const changes = w.posts.filter((p) => p.status === "changes_requested").length;
+              const pending = w.posts.filter((p) => p.status === "in_review" || p.status === "draft").length;
               return (
                 <Link key={w.id} href={`/week/${w.id}`} className="week-row">
                   <div className="meta">
                     <div className="title">{w.label}</div>
                     <div className="desc">
-                      {w.posts.length} posts · {approved}/{w.posts.length} approved
+                      {w.posts.length} posts · {approved} approved · {changes} changes · {pending} pending
                       {errors ? ` · ${errors} blocking issues` : warns ? ` · ${warns} warnings` : " · checks passed"}
                       {w.source === "manual" ? " · from upload" : ""}
                     </div>
