@@ -169,7 +169,7 @@ export interface Instruction {
   id: string;
   title: string;
   body: string; // the rule(s) the writer must follow
-  source: "typed" | "file" | "link" | "example";
+  source: "typed" | "file" | "link" | "example" | "learned";
   postType?: PostType; // optional targeting; undefined = all types
   icp?: ICP; // optional targeting; undefined = all ICPs
   enabled: boolean;

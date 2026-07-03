@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { getPost, saveWeek } from "@/lib/store";
-import { revisePost } from "@/lib/generate/generate";
+import { learnFromFeedback, revisePost } from "@/lib/generate/generate";
 
 export const maxDuration = 120;
 
@@ -25,6 +25,12 @@ export async function POST(
     // (hook swaps, tweaks) do not signal pending founder feedback.
     if (author === "jaya") found.week.status = "changes_requested";
     await saveWeek(found.week);
+    // Learn from the feedback after responding: durable preferences become
+    // permanent rules in Instructions and shape all future content.
+    const postForLearning = revised;
+    after(async () => {
+      await learnFromFeedback(String(note), postForLearning, author);
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

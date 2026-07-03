@@ -23,10 +23,12 @@ export default function PostCard({
   post,
   svgs,
   weekId,
+  reviewer = false,
 }: {
   post: Post;
   svgs: string[];
   weekId: string;
+  reviewer?: boolean;
 }) {
   const router = useRouter();
   const [slide, setSlide] = useState(0);
@@ -54,7 +56,7 @@ export default function PostCard({
       const res = await fetch(`/api/posts/${post.id}/approve`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ weekId }),
+        body: JSON.stringify({ weekId, by: reviewer ? "jaya" : "waqar" }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Failed");
       router.refresh();
@@ -105,7 +107,7 @@ export default function PostCard({
   }
 
   return (
-    <div className="post">
+    <div className="post" id={`post-${post.id}`}>
       <div className="post-head">
         <span className="day">{post.day}</span>
         <span className="type">
@@ -163,7 +165,7 @@ export default function PostCard({
             <div className="hookbox">
               <h4>Hook</h4>
               <div className="hook-cur">{post.hook}</div>
-              {altHooks.length > 0 && (
+              {!reviewer && altHooks.length > 0 && (
                 <div className="hook-alts">
                   <div className="note">Alternates, click to rebuild the post around it:</div>
                   {altHooks.map((h, i) => (
@@ -255,9 +257,11 @@ export default function PostCard({
             <button className="btn btn-sm" onClick={() => setShowRevise((v) => !v)} disabled={busy}>
               Request changes
             </button>
-            <button className="btn btn-ghost btn-sm" onClick={regenerate} disabled={busy}>
-              Regenerate
-            </button>
+            {!reviewer && (
+              <button className="btn btn-ghost btn-sm" onClick={regenerate} disabled={busy}>
+                Regenerate
+              </button>
+            )}
             {busy && <span className="note">Working…</span>}
             {err && <span style={{ color: "var(--red)", fontSize: 12 }}>{err}</span>}
           </div>
@@ -271,10 +275,12 @@ export default function PostCard({
                 onChange={(e) => setNote(e.target.value)}
               />
               <div className="row">
-                <select value={by} onChange={(e) => setBy(e.target.value as "jaya" | "waqar")} style={{ width: 140 }}>
-                  <option value="jaya">As Jaya</option>
-                  <option value="waqar">As Waqar</option>
-                </select>
+                {!reviewer && (
+                  <select value={by} onChange={(e) => setBy(e.target.value as "jaya" | "waqar")} style={{ width: 140 }}>
+                    <option value="jaya">As Jaya</option>
+                    <option value="waqar">As Waqar</option>
+                  </select>
+                )}
                 <button className="btn btn-primary btn-sm" onClick={() => doRevise(note)} disabled={busy || !note.trim()}>
                   {busy ? "Revising…" : "Submit and revise"}
                 </button>

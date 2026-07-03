@@ -1,38 +1,75 @@
-// Slack delivery. First cut uses an incoming webhook (one env var). If unset,
-// these are no-ops so the tool runs without Slack configured.
-import type { Week } from "@/lib/types";
+// Slack delivery via incoming webhook (SLACK_WEBHOOK_URL). Every sender
+// reports success/failure so the UI can surface real delivery status.
+import type { Post, Week } from "@/lib/types";
 
-async function postSlack(text: string): Promise<void> {
+export function slackConfigured(): boolean {
+  return !!process.env.SLACK_WEBHOOK_URL;
+}
+
+async function postSlack(text: string): Promise<boolean> {
   const url = process.env.SLACK_WEBHOOK_URL;
-  if (!url) return;
+  if (!url) return false;
   try {
-    await fetch(url, {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text }),
     });
+    return r.ok;
   } catch {
-    // best effort
+    return false;
   }
 }
 
-function link(week: Week): string {
-  // Fall back to the Vercel production domain so Slack links work even before
-  // APP_BASE_URL is configured.
-  const base =
+function base(): string {
+  return (
     process.env.APP_BASE_URL ||
     (process.env.VERCEL_PROJECT_PRODUCTION_URL
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "");
-  return `${base}/week/${week.id}`;
+      : "")
+  );
 }
 
-// Saturday: send Jaya the review link.
-export async function notifyReview(week: Week): Promise<void> {
-  await postSlack(`A new week is ready for your review: ${week.label}\n${link(week)}`);
+function link(week: Week): string {
+  return `${base()}/week/${week.id}`;
 }
 
-// On full approval: ping Waqar to schedule.
-export async function notifyApproved(week: Week): Promise<void> {
-  await postSlack(`Approved and ready to post: ${week.label}\n${link(week)}`);
+// The link Jaya gets: reviewer mode, clean approve/request-changes surface.
+function reviewerLink(week: Week): string {
+  return `${link(week)}?reviewer=1`;
+}
+
+// Content is ready: send Jaya the review link.
+export async function notifyReview(week: Week): Promise<boolean> {
+  return postSlack(
+    `Hi Jaya, next week's content is ready for your review: *${week.label}*\n` +
+      `${reviewerLink(week)}\n` +
+      `Open the link, then on each post click Approve, or Request changes and type what to change. It will be revised and ready for another look. Approve all clears the week in one click.`,
+  );
+}
+
+// Jaya approved one post: keep Waqar in the loop as it happens.
+export async function notifyPostApproved(
+  week: Week,
+  post: Post,
+  approvedCount: number,
+  total: number,
+): Promise<boolean> {
+  return postSlack(
+    `Jaya approved ${post.day} (${post.topic}). ${approvedCount}/${total} approved for ${week.label}.\n${link(week)}`,
+  );
+}
+
+// Whole week approved: Waqar schedules it on LinkedIn.
+export async function notifyApproved(week: Week): Promise<boolean> {
+  return postSlack(
+    `All posts approved and ready to schedule: *${week.label}*\n${link(week)}`,
+  );
+}
+
+// Connectivity check for the Test Slack button.
+export async function sendTestMessage(): Promise<boolean> {
+  return postSlack(
+    "Sunnyvale test message. Slack is connected: review links and approval updates will arrive in this channel.",
+  );
 }

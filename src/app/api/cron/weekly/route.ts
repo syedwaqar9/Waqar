@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWeek } from "@/lib/generate/generate";
-import { notifyReview } from "@/lib/slack";
 
 export const maxDuration = 300;
 
@@ -15,8 +14,8 @@ export async function GET(req: NextRequest) {
     }
   }
   try {
+    // generateWeek notifies Jaya on Slack itself once the content is ready.
     const week = await generateWeek();
-    await notifyReview(week);
     return NextResponse.json({ id: week.id, status: week.status });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

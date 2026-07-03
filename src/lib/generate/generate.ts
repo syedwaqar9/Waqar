@@ -14,7 +14,8 @@ import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
 import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
-import { getInstructions, getWeek, listWeeks, saveWeek } from "@/lib/store";
+import { getInstructions, getWeek, listWeeks, saveInstructions, saveWeek } from "@/lib/store";
+import { notifyReview } from "@/lib/slack";
 import type {
   ICP,
   Instruction,
@@ -406,6 +407,12 @@ export async function runWeek(weekId: string): Promise<void> {
 
     week.status = "in_review";
     await saveWeek(week);
+    // Content is ready: the review link goes straight to Jaya on Slack.
+    try {
+      await notifyReview(week);
+    } catch {
+      // Slack is best-effort; the Send to Jaya button covers resends.
+    }
   } catch (e) {
     week.status = "in_review";
     week.theme = week.theme || `Generation error: ${(e as Error).message}`;
@@ -572,6 +579,44 @@ type Anthropic_ContentBlock =
       type: "image";
       source: { type: "base64"; media_type: string; data: string };
     };
+
+// THE LEARNING LOOP. Every change request is examined: if it implies a durable
+// rule (voice, structure, facts policy) rather than a one-off correction, it is
+// saved to Instructions as a "learned" rule and applies to all future content.
+// Deduped against existing rules; visible and disableable in the Instructions tab.
+export async function learnFromFeedback(note: string, post: Post, by: "jaya" | "waqar"): Promise<void> {
+  try {
+    const existing = await getInstructions();
+    const res = await completeJSON<{ durable?: boolean; title?: string; body?: string }>({
+      system:
+        "You maintain the permanent style guide for a LinkedIn content engine. You decide whether reviewer feedback is a durable rule or a one-off fix. Respond with valid JSON only.",
+      user: `${by === "jaya" ? "The founder (final approver)" : "The growth advisor"} left this change request on a ${POST_TYPES[post.type].label} post:
+"${note}"
+
+Existing permanent rules (do not duplicate any of these):
+${existing.map((i) => `- ${i.title}: ${i.body}`).join("\n") || "(none)"}
+
+If the note implies a DURABLE preference that should shape FUTURE posts (tone, structure, wording habits, claim policy, visual copy), extract it as a short imperative rule. If it is a one-off correction (a typo, this post's specific facts or hook) or already covered above, it is not durable.
+
+Return JSON: { "durable": boolean, "title": string (3 to 6 words), "body": string (1 to 3 short imperative lines) }`,
+      maxTokens: 600,
+    });
+    if (res?.durable && res.body?.trim()) {
+      const list = await getInstructions();
+      list.unshift({
+        id: nanoid(10),
+        title: (res.title || "Learned from feedback").slice(0, 80),
+        body: res.body.trim(),
+        source: "learned",
+        enabled: true,
+        createdAt: new Date().toISOString(),
+      });
+      await saveInstructions(list);
+    }
+  } catch {
+    // Learning is best-effort; never block the revision on it.
+  }
+}
 
 // Turn an uploaded file, a link, or an example post into a concise rule.
 export async function extractInstruction(input: {
