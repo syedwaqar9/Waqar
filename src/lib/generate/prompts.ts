@@ -59,7 +59,7 @@ VISUAL GRAMMAR (the renderer draws exactly what you specify):
 - Square 1080x1080. Keep each headline line SHORT. Single posts use very large type, so each headline line should be about 3 words max. Carousels allow about 5 words per line. Whole headline under ${DESIGN.headlineMaxWords} words.
 - Two-colour headline split: put neutral/factual lines in "headlineWhite" and the single tension or key line in "headlineAccent".
 - "eyebrow" is a short all-caps category label (for example REGULATION ALERT, THE TAKEAWAY).
-- "sourceLabel" is a short citation shown on the card (for example SOURCE: EUROPEAN COMMISSION, 7 MAY 2026).
+- "sourceLabel" is a short citation shown on the card. HARD LIMIT 40 characters or it clips (good: SOURCE: EU COMMISSION · 7 MAY 2026. Bad: full regulation numbers plus deadline text).
 - A single post returns a "single" object. A carousel returns 7 "slides".
 - Carousel slide grammar: slide 1 is the hook (layout "hook"), slides 2 to 6 are the body (layout one of "statement", "grid", "compare", "list"), slide 7 is the takeaway (layout "takeaway") with a two-colour punch line and the CTA.
 - Slide layouts:

@@ -286,6 +286,7 @@ async function generatePost(
   startDate: Date,
   customRules: string,
   alreadyDrafted: string[] = [],
+  qaFeedback = "",
 ): Promise<Post> {
   const reshareNote = spec.reshareBy
     ? `This is a Jaya reshare. Also write "reshareCommentary": a short first-person line in Jaya Kandaswamy's voice (${ORG.founderTitle}), honest and specific, using "${VOICE.hedges.observation}" for any observational claim.`
@@ -322,7 +323,11 @@ ${activeFactsText()}
 Never cite:
 ${blockedFactsText()}
 
-${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
+${
+  qaFeedback
+    ? `THE QUALITY REVIEWER REJECTED THE PREVIOUS DRAFT. Fix ALL of these before anything else:\n${qaFeedback}\n\n`
+    : ""
+}${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const draft = await completeJSON<PostDraft>({
     system: brandSystemPrompt(),
@@ -330,6 +335,108 @@ ${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
     maxTokens: spec.format === "carousel" ? 8000 : 4500,
   });
   return draftToPost(draft, spec, weekId, startDate);
+}
+
+// ── THE QA AGENT ─────────────────────────────────────────────────────────────
+// Every drafted post passes a quality gate before it enters the week:
+// 1. Deterministic layout checks (text that will not fit its card).
+// 2. Blocking lint errors (voice rules).
+// 3. A model reviewer that rejects AI-sounding copy and unsourced claims.
+// A rejected draft is regenerated with the reviewer's reasons, up to 2 rounds.
+
+function layoutQA(post: Post): string[] {
+  const issues: string[] = [];
+  const label = (l: string | undefined, where: string) => {
+    if (l && l.length > 45) issues.push(`${where}: sourceLabel is ${l.length} chars, hard limit 40: "${l}"`);
+  };
+  if (post.format === "single") {
+    if (!post.single || (!post.single.headlineWhite?.length && !post.single.headlineAccent?.length)) {
+      issues.push("Single image has no headline.");
+    } else {
+      label(post.single.sourceLabel, "Single image");
+      const lines = [...post.single.headlineWhite, ...post.single.headlineAccent];
+      if (lines.length > 5) issues.push(`Single has ${lines.length} headline lines, max 5.`);
+      for (const l of lines) if (l.length > 30) issues.push(`Single headline line too long to render large: "${l}"`);
+      if ((post.single.subhead || "").length > 150) issues.push("Single subhead over 150 chars will clip to 3 lines.");
+    }
+  }
+  if (post.format === "carousel") {
+    const slides = post.slides || [];
+    if (slides.length < 7) issues.push(`Carousel has ${slides.length} slides, needs exactly 7.`);
+    for (const s of slides) {
+      label(s.sourceLabel, `Slide ${s.index}`);
+      if ((s.bullets || []).length > 5) issues.push(`Slide ${s.index} has ${s.bullets!.length} bullets, max 5 render.`);
+      if ((s.gridItems || []).length > 6) issues.push(`Slide ${s.index} has ${s.gridItems!.length} grid items, max 6 render.`);
+      if ((s.compareRows || []).length > 4) issues.push(`Slide ${s.index} has ${s.compareRows!.length} compare rows, max 4 render.`);
+      const lines = [...(s.headlineWhite || []), ...(s.headlineAccent || [])];
+      if (lines.length > 5) issues.push(`Slide ${s.index} has ${lines.length} headline lines, max 5.`);
+    }
+  }
+  return issues;
+}
+
+async function contentQA(post: Post): Promise<{ pass: boolean; issues: string[] }> {
+  return completeJSON<{ pass: boolean; issues: string[] }>({
+    system:
+      "You are the final quality gate for IAIMS LinkedIn content. You reject drafts with real problems. You do not nitpick style choices that follow the rules. Respond with valid JSON only.",
+    user: `Review this LinkedIn post draft. REJECT only for real problems:
+1. Copy that reads AI-generated: template phrasing, hollow filler lines, hype words (${VOICE.bannedTerms.slice(0, 12).join(", ")}, ...), the "not just X, it is Y" reversal.
+2. Text that will not fit its card: any sourceLabel over 40 characters, single-image headline lines over 30 characters, subheads over 150 characters.
+3. Broken voice rules: em dashes, exclamation marks, hashtag count not exactly 3, comment-bait CTA, caption missing "${VOICE.cta}".
+4. Specific claims (statutes, dates, penalty figures) with no matching entry in sources.
+
+Post JSON:
+${JSON.stringify(
+      {
+        format: post.format,
+        topic: post.topic,
+        hook: post.hook,
+        caption: post.caption,
+        hashtags: post.hashtags,
+        sources: post.sources,
+        single: post.single,
+        slides: post.slides,
+      },
+      null,
+      1,
+    )}
+
+Return {"pass": boolean, "issues": [up to 6 short, specific, actionable reasons]}`,
+    maxTokens: 800,
+  });
+}
+
+async function qaGate(post: Post, regen: (feedback: string) => Promise<Post>): Promise<Post> {
+  for (let round = 0; round < 2; round++) {
+    const issues: string[] = [
+      ...layoutQA(post),
+      ...(post.lint?.issues || []).filter((i) => i.level === "error").map((i) => i.message),
+    ];
+    if (issues.length === 0) {
+      try {
+        const c = await contentQA(post);
+        if (!c.pass && c.issues?.length) issues.push(...c.issues.slice(0, 6));
+      } catch {
+        // QA reviewer unavailable: deterministic checks already passed.
+      }
+    }
+    if (issues.length === 0) return post;
+    try {
+      const fixed = await regen(issues.map((i) => `- ${i}`).join("\n"));
+      fixed.history = [
+        ...post.history,
+        {
+          at: new Date().toISOString(),
+          source: "system",
+          note: `Quality gate rejected a draft and regenerated it: ${issues.join(" | ")}`,
+        },
+      ];
+      post = fixed;
+    } catch {
+      return post; // keep the last draft rather than lose the day
+    }
+  }
+  return post;
 }
 
 // ── Weekly run (background-safe) ─────────────────────────────────────────────
@@ -392,6 +499,13 @@ export async function runWeek(weekId: string): Promise<void> {
         } catch (e) {
           lastErr = (e as Error).message;
         }
+      }
+      // The QA agent inspects the draft and sends it back for regeneration
+      // (with its reasons) until it passes or the round limit is hit.
+      if (post) {
+        post = await qaGate(post, (feedback) =>
+          generatePost(spec, research, weekId, startDate, rules, draftedHooks, feedback),
+        );
       }
       week.posts.push(
         post ||
@@ -727,6 +841,11 @@ export async function regeneratePost(weekId: string, postId: string): Promise<Po
     } catch (e) {
       lastErr = (e as Error).message;
     }
+  }
+  if (post) {
+    post = await qaGate(post, (feedback) =>
+      generatePost(spec, research, weekId, startDate, rules, otherHooks, feedback),
+    );
   }
   if (!post) {
     post = draftToPost({ caption: `Regeneration failed: ${lastErr}.` }, spec, weekId, startDate);

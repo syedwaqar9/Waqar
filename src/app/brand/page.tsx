@@ -1,6 +1,7 @@
 import { ORG, VOICE, NOT_LIST, ICPS, POST_TYPES, GROWTH, MESSAGE_BANK } from "@/brand/brandBrain";
 import { SEED_FACTS } from "@/brand/facts";
 import type { ICP, PostType } from "@/lib/types";
+import InboxShowcase from "@/components/InboxShowcase";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,10 @@ export default function BrandPage() {
         <span className="chip">read-only in this build</span>
       </div>
       <div className="main-pad">
+        <InboxShowcase />
         <p className="muted" style={{ marginTop: 0 }}>
-          The single source of truth every generator reads from. Editing in-app, and the learning
-          loop that promotes Jaya&apos;s notes into permanent rules, are the next build step.
+          The single source of truth every generator reads from. Learned rules from Jaya&apos;s and
+          Waqar&apos;s feedback appear in the Instructions tab automatically.
         </p>
 
         <div className="kv">

@@ -113,6 +113,16 @@ export function lintPost(post: Post): LintResult {
     }
   }
 
+  // Source labels that will clip on the card.
+  const labels = [post.single?.sourceLabel, ...(post.slides || []).map((s) => s.sourceLabel)].filter(
+    Boolean,
+  ) as string[];
+  for (const l of labels) {
+    if (l.length > 45) {
+      issues.push({ rule: "source-label-length", level: "warn", message: `Source label may clip: "${l}".` });
+    }
+  }
+
   // Caption length sanity.
   if (post.caption.length < 120) {
     issues.push({ rule: "caption-too-short", level: "warn", message: "Caption looks short for LinkedIn." });

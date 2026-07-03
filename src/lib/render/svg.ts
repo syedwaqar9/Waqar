@@ -100,8 +100,22 @@ function brandMark(p: Palette): string {
 
 function bottomRight(label: string, p: Palette): string {
   if (!label) return "";
-  return `<text x="${SIZE - M}" y="${SIZE - 54}" text-anchor="end" font-family="${FONT}" font-size="20" font-weight="700" letter-spacing="1.5" fill="${p.muted}">${esc(
-    label.toUpperCase(),
+  // The label may never collide with the brand mark on the left: shrink the
+  // font, then truncate with an ellipsis, to fit the space that remains.
+  const brandW = estimateTextWidth(DESIGN.brandMark, 22, true);
+  const maxW = SIZE - 2 * M - brandW - 36;
+  const width = (t: string, s: number) => estimateTextWidth(t, s, true) + t.length * 1.5;
+  let size = 20;
+  let text = label.toUpperCase();
+  while (width(text, size) > maxW && size > 16) size -= 1;
+  let truncated = false;
+  while (width(text, size) > maxW && text.length > 6) {
+    text = text.slice(0, -1);
+    truncated = true;
+  }
+  if (truncated) text = text.replace(/[\s·:,;-]+$/, "") + "…";
+  return `<text x="${SIZE - M}" y="${SIZE - 54}" text-anchor="end" font-family="${FONT}" font-size="${size}" font-weight="700" letter-spacing="1.5" fill="${p.muted}">${esc(
+    text,
   )}</text>`;
 }
 
