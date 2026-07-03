@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listWeeks } from "@/lib/store";
 import GenerateButton from "@/components/GenerateButton";
+import InboxShowcase from "@/components/InboxShowcase";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ export default async function Home() {
       <div className="main-pad">
         {weeks.length === 0 ? (
           <div className="empty">
+            <InboxShowcase />
             <p style={{ fontSize: 15, color: "var(--text)" }}>No weeks yet.</p>
             <p>Click Generate next week to research the latest AI-regulation news and draft five posts.</p>
           </div>

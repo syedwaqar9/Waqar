@@ -1,3 +1,42 @@
+/* Tailwind v4, WITHOUT preflight: theme + utilities only, so the existing
+   hand-rolled UI is untouched. Utilities live in a lower cascade layer, so all
+   unlayered app CSS below always wins on conflicts. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+
+/* shadcn token names mapped to the Sunnyvale palette, so ui components
+   (bg-muted, border-border, from-background...) blend into the app. */
+@theme {
+  --color-background: #0b0b0f;
+  --color-foreground: #ededf1;
+  --color-muted: #15151c;
+  --color-muted-foreground: #9494a0;
+  --color-border: #24242e;
+  --color-input: #2e2e3a;
+  --color-ring: #6c6cf2;
+  --color-card: #101015;
+  --color-card-foreground: #ededf1;
+  --color-primary: #6c6cf2;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #1a1a22;
+  --color-secondary-foreground: #ededf1;
+  --color-accent: #1a1a22;
+  --color-accent-foreground: #ededf1;
+}
+
+/* Preflight is skipped, so provide the one preflight rule shadcn components
+   rely on: borders default to the border token instead of currentColor. Safe
+   for the legacy UI because it always sets border colors explicitly. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+}
+
 :root {
   --bg: #0b0b0f;
   --panel: #101015;
