@@ -6,6 +6,7 @@ import {
   DESIGN,
   VOICE,
   ORG,
+  HASHTAG_POOL,
 } from "@/brand/brandBrain";
 import { SEED_FACTS } from "@/brand/facts";
 import { completeJSON, getClient, textOf, MODEL } from "@/lib/anthropic";
@@ -118,13 +119,30 @@ Return JSON array of 5 objects in day order:
 [{ "dayIndex": number, "topic": string, "angle": string, "geography": string, "icps": [icp keys] }]
 icp keys are: ${ICP_KEYS.join(", ")}.`;
 
-  const planned = await completeJSON<
-    { dayIndex: number; topic: string; angle: string; geography: string; icps: string[] }[]
-  >({
-    system: brandSystemPrompt(),
-    user,
-    maxTokens: 2000,
-  });
+  type PlannedDay = { dayIndex: number; topic: string; angle: string; geography: string; icps: string[] };
+  let planned: PlannedDay[] = [];
+  for (let attempt = 0; attempt < 2 && planned.length === 0; attempt++) {
+    try {
+      const raw = await completeJSON<unknown>({
+        system: brandSystemPrompt(),
+        user,
+        maxTokens: 2500,
+      });
+      // Accept a bare array or a common wrapper key.
+      const arr = Array.isArray(raw)
+        ? raw
+        : ((raw as { days?: unknown[]; plan?: unknown[]; posts?: unknown[] })?.days ??
+          (raw as { plan?: unknown[] })?.plan ??
+          (raw as { posts?: unknown[] })?.posts ??
+          []);
+      planned = (arr as PlannedDay[]).filter((x) => x && typeof x === "object");
+    } catch {
+      // retry once
+    }
+  }
+  if (planned.length === 0) {
+    throw new Error("The planner did not return a usable plan.");
+  }
 
   return WEEK_RHYTHM.map((r) => {
     const p = planned.find((x) => x.dayIndex === r.dayIndex) || planned[r.dayIndex];
@@ -166,11 +184,28 @@ function coerceCaption(caption: string): string {
 }
 
 function coerceHashtags(tags: unknown): string[] {
-  let arr = Array.isArray(tags) ? tags.map((t) => String(t).trim()) : [];
-  arr = arr.map((t) => (t.startsWith("#") ? t : `#${t.replace(/\s+/g, "")}`));
-  arr = arr.filter(Boolean).slice(0, 3);
-  while (arr.length < 3) arr.push("#AIGovernance");
-  return arr;
+  const raw = Array.isArray(tags) ? tags.map((t) => String(t).trim()) : [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (let t of raw) {
+    if (!t) continue;
+    t = t.startsWith("#") ? t : `#${t.replace(/\s+/g, "")}`;
+    const k = t.toLowerCase();
+    if (t.length > 1 && !seen.has(k)) {
+      seen.add(k);
+      out.push(t);
+    }
+    if (out.length === 3) return out;
+  }
+  // Top up from the pool without duplicating.
+  for (const p of HASHTAG_POOL) {
+    if (out.length === 3) break;
+    if (!seen.has(p.toLowerCase())) {
+      seen.add(p.toLowerCase());
+      out.push(p);
+    }
+  }
+  return out.slice(0, 3);
 }
 
 function coerceSlides(raw: Partial<Slide>[] | undefined): Slide[] {
@@ -249,6 +284,7 @@ async function generatePost(
   weekId: string,
   startDate: Date,
   customRules: string,
+  alreadyDrafted: string[] = [],
 ): Promise<Post> {
   const reshareNote = spec.reshareBy
     ? `This is a Jaya reshare. Also write "reshareCommentary": a short first-person line in Jaya Kandaswamy's voice (${ORG.founderTitle}), honest and specific, using "${VOICE.hedges.observation}" for any observational claim.`
@@ -269,7 +305,13 @@ Target ICPs: ${spec.icps.map((k) => ICPS[k].label).join(", ")}.
 Type guidance: ${POST_TYPES[spec.type].description}
 ${reshareNote}
 ${typeNote}
-
+${
+  alreadyDrafted.length
+    ? `\nAlready drafted this week (your hook and opening rhythm must take a DIFFERENT shape from these, so the week does not read as one template):\n${alreadyDrafted
+        .map((h) => `- ${h}`)
+        .join("\n")}\n`
+    : ""
+}
 This week's verified research (cite from here and from the verified facts only):
 ${research}
 
@@ -340,11 +382,12 @@ export async function runWeek(weekId: string): Promise<void> {
 
     for (const spec of specs) {
       const rules = customRulesText(instructions, spec.type, spec.icps);
+      const draftedHooks = week.posts.map((p) => `${p.day}: ${p.hook}`).filter((h) => h.length > 12);
       let post: Post | null = null;
       let lastErr = "";
       for (let attempt = 0; attempt < 3 && !post; attempt++) {
         try {
-          post = await generatePost(spec, research, weekId, startDate, rules);
+          post = await generatePost(spec, research, weekId, startDate, rules, draftedHooks);
         } catch (e) {
           lastErr = (e as Error).message;
         }
@@ -471,8 +514,13 @@ ${input.note ? `\nMy note about it: ${input.note}` : ""}
 
 ${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
-  const content: Anthropic_ContentBlock[] = [];
-  if (input.imageBase64 && input.mediaType) {
+  const content: unknown[] = [];
+  if (input.imageBase64 && input.mediaType === "application/pdf") {
+    content.push({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: input.imageBase64 },
+    });
+  } else if (input.imageBase64 && input.mediaType) {
     content.push({
       type: "image",
       source: { type: "base64", media_type: input.mediaType, data: input.imageBase64 },
@@ -621,12 +669,16 @@ export async function regeneratePost(weekId: string, postId: string): Promise<Po
 
   const instructions = await getInstructions();
   const rules = customRulesText(instructions, spec.type, spec.icps);
+  const otherHooks = week.posts
+    .filter((p) => p.id !== postId)
+    .map((p) => `${p.day}: ${p.hook}`)
+    .filter((h) => h.length > 12);
 
   let post: Post | null = null;
   let lastErr = "";
   for (let attempt = 0; attempt < 3 && !post; attempt++) {
     try {
-      post = await generatePost(spec, research, weekId, startDate, rules);
+      post = await generatePost(spec, research, weekId, startDate, rules, otherHooks);
     } catch (e) {
       lastErr = (e as Error).message;
     }

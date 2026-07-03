@@ -17,10 +17,13 @@ export async function POST(
     const found = await getPost(weekId, id);
     if (!found) return NextResponse.json({ error: "Post not found." }, { status: 404 });
 
-    const revised = await revisePost(found.post, String(note), by === "waqar" ? "waqar" : "jaya");
+    const author = by === "waqar" ? "waqar" : "jaya";
+    const revised = await revisePost(found.post, String(note), author);
     const idx = found.week.posts.findIndex((p) => p.id === id);
     found.week.posts[idx] = revised;
-    found.week.status = "changes_requested";
+    // Only Jaya's requests flip the week's review state; Waqar's own edits
+    // (hook swaps, tweaks) do not signal pending founder feedback.
+    if (author === "jaya") found.week.status = "changes_requested";
     await saveWeek(found.week);
     return NextResponse.json({ ok: true });
   } catch (e) {

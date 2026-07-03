@@ -108,7 +108,10 @@ export default function PostCard({
     <div className="post">
       <div className="post-head">
         <span className="day">{post.day}</span>
-        <span className="type">{TYPE_LABEL[post.type] || post.type}</span>
+        <span className="type">
+          {TYPE_LABEL[post.type] || post.type}
+          {post.date ? ` · ${post.date}` : ""}
+        </span>
         <span className="chip">{post.format}</span>
         {post.reshareBy && <span className="chip reshare">↗ Jaya reshare</span>}
         {post.icps.map((i) => (
@@ -170,7 +173,7 @@ export default function PostCard({
                       disabled={busy}
                       onClick={() =>
                         doRevise(
-                          `Rewrite this post so it opens with this exact hook, and make the visual headline match it: "${h}". Keep the facts, sources, and format the same.`,
+                          `Switch the hook to: "${h}". Open the caption with it, make the visual headline match it, keep the facts, sources, and format the same.`,
                           "waqar",
                         )
                       }

@@ -5,6 +5,7 @@ import PostCard from "@/components/PostCard";
 import SendToJaya from "@/components/SendToJaya";
 import GeneratingWatcher from "@/components/GeneratingWatcher";
 import CopyLink from "@/components/CopyLink";
+import ApproveAll from "@/components/ApproveAll";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,9 @@ export default async function WeekPage({ params }: { params: Promise<{ id: strin
         <div className="row">
           <CopyLink />
           <SendToJaya weekId={week.id} />
+          {week.posts.length > 0 && week.status !== "approved" && week.status !== "generating" && (
+            <ApproveAll weekId={week.id} />
+          )}
           <span className={`chip s-${week.status}`}>{week.status.replace("_", " ")}</span>
         </div>
       </div>

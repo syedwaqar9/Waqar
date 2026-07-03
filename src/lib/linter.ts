@@ -25,6 +25,8 @@ function headlineLines(post: Post): string[] {
 
 function allText(post: Post): string {
   const parts: string[] = [post.caption, post.hook, post.topic, post.rationale];
+  if (post.hookOptions) parts.push(...post.hookOptions);
+  if (post.firstComment) parts.push(post.firstComment);
   parts.push(...headlineLines(post));
   for (const s of post.slides || []) {
     if (s.eyebrow) parts.push(s.eyebrow);
@@ -64,9 +66,29 @@ export function lintPost(post: Post): LintResult {
     issues.push({ rule: "cta-present", level: "error", message: "Caption is missing the standard CTA (iaimscience.org)." });
   }
 
-  // No comment-trigger CTAs.
-  if (/comment\s+["'“]?\w+|in the comments|drop .* below|comment below/i.test(text)) {
+  // No comment-trigger CTAs. Quoted trigger words, "comment below", "in the
+  // comments", "drop X below". Plain "comment period" (FDA language) must pass.
+  if (
+    /comment\s+["'“”‘’]\w+|comment below|in the comments|drop (a|your|it|them) .{0,20}below|share in the comments/i.test(
+      text,
+    )
+  ) {
     issues.push({ rule: "no-comment-cta", level: "error", message: "Contains a comment-trigger CTA. Jaya removed these permanently." });
+  }
+
+  // Anti-slop patterns that read as AI-generated.
+  if (/\bnot just\b/i.test(text)) {
+    issues.push({ rule: "no-slop", level: "warn", message: `Uses the "not just X, it is Y" reversal cliche.` });
+  }
+  if (/here's (the thing|why|how|what)/i.test(text)) {
+    issues.push({ rule: "no-slop", level: "warn", message: `Uses a "Here's the..." crutch opener.` });
+  }
+  if (/\p{Extended_Pictographic}/u.test(text)) {
+    issues.push({ rule: "no-emoji", level: "warn", message: "Contains an emoji." });
+  }
+  // Duplicate hashtags.
+  if (new Set(post.hashtags.map((h) => h.toLowerCase())).size !== post.hashtags.length) {
+    issues.push({ rule: "unique-hashtags", level: "error", message: "Hashtags are duplicated." });
   }
 
   // Colorado stale-date guard.

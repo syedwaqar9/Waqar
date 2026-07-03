@@ -14,12 +14,13 @@ export async function POST(
 
     const post = week.posts.find((p) => p.id === id);
     if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+    const wasApproved = week.status === "approved";
     post.status = "approved";
 
     if (week.posts.every((p) => p.status === "approved")) {
       week.status = "approved";
       await saveWeek(week);
-      await notifyApproved(week);
+      if (!wasApproved) await notifyApproved(week);
     } else {
       await saveWeek(week);
     }

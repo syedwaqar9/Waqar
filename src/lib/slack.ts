@@ -17,7 +17,13 @@ async function postSlack(text: string): Promise<void> {
 }
 
 function link(week: Week): string {
-  const base = process.env.APP_BASE_URL || "";
+  // Fall back to the Vercel production domain so Slack links work even before
+  // APP_BASE_URL is configured.
+  const base =
+    process.env.APP_BASE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "");
   return `${base}/week/${week.id}`;
 }
 

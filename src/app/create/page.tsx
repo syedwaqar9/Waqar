@@ -46,7 +46,7 @@ export default function CreatePage() {
             <h3>Upload an image or screenshot (optional)</h3>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg,image/webp,application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
             />
             {file && <div className="note">Selected: {file.name}</div>}
