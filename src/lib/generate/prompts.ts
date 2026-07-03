@@ -50,7 +50,10 @@ WRITE LIKE A PRACTITIONER, NOT A CONTENT ENGINE. The output must never read as A
 - No emojis anywhere. No listicle formatting in captions unless the post genuinely is a list.
 - Concrete beats clever. If a sentence could appear in any company's post, replace it with a fact, a date, a statute, or a named artifact.
 - Plain verbs over corporate verbs: use, build, prove, show, miss, cost.
-- Read-aloud test: it should sound like a sharp practitioner talking to a peer, with a point of view, not marketing copy.
+- No broetry: do not put a line break after every sentence for drama. Write real paragraphs.
+- At most ONE question in the whole caption, the genuine closing one. No engagement bait ("agree?", "thoughts?", "let that sink in", "read that again").
+- Zero emoji, anywhere.
+- Read-aloud test: it should sound like a sharp practitioner talking to a peer, with a point of view, not marketing copy. AI slop is generic and interchangeable; every line here should only make sense coming from IAIMS this specific week.
 
 APPROVED LINES you may reuse when they fit. Use at most ONE per post, never as the hook, and prefer rephrasing it in context over quoting verbatim:
 ${MESSAGE_BANK.map((m) => `- ${m}`).join("\n")}

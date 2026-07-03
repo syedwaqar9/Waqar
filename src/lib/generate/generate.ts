@@ -567,11 +567,22 @@ ${JSON.stringify(
 
 ${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
-  const draft = await completeJSON<PostDraft>({
-    system: brandSystemPrompt(),
-    user,
-    maxTokens: 4000,
-  });
+  // Carousel JSON is large: give it room and retry, a truncated reply is the
+  // most common cause of "Expected ',' or '}'" parse failures.
+  let draft: PostDraft | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3 && !draft; attempt++) {
+    try {
+      draft = await completeJSON<PostDraft>({
+        system: brandSystemPrompt(),
+        user,
+        maxTokens: post.format === "carousel" ? 8000 : 4500,
+      });
+    } catch (e) {
+      lastErr = (e as Error).message;
+    }
+  }
+  if (!draft) throw new Error(`Revision failed after 3 attempts: ${lastErr}`);
 
   const spec: DaySpec = {
     dayIndex: post.dayIndex,

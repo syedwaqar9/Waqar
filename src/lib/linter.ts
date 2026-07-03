@@ -84,7 +84,19 @@ export function lintPost(post: Post): LintResult {
     issues.push({ rule: "no-slop", level: "warn", message: `Uses a "Here's the..." crutch opener.` });
   }
   if (/\p{Extended_Pictographic}/u.test(text)) {
-    issues.push({ rule: "no-emoji", level: "warn", message: "Contains an emoji." });
+    issues.push({ rule: "no-emoji", level: "error", message: "Contains an emoji. IAIMS captions carry zero emoji." });
+  }
+  // Broetry rhythm: nearly every paragraph a single dramatic sentence.
+  const paras = post.caption.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  if (paras.length >= 6) {
+    const single = paras.filter((p) => (p.match(/[.!?]/g) || []).length <= 1).length;
+    if (single / paras.length > 0.85) {
+      issues.push({ rule: "no-slop", level: "warn", message: "Broetry rhythm: almost every paragraph is one dramatic sentence. Vary paragraph shape." });
+    }
+  }
+  // Rhetorical question stacking.
+  if ((post.caption.match(/\?/g) || []).length >= 3) {
+    issues.push({ rule: "no-slop", level: "warn", message: "Three or more questions in one caption reads as engagement bait. Keep one." });
   }
   // Duplicate hashtags.
   if (new Set(post.hashtags.map((h) => h.toLowerCase())).size !== post.hashtags.length) {

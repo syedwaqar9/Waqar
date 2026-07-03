@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { listWeeks } from "@/lib/store";
+import { deleteWeek, listWeeks } from "@/lib/store";
 import GenerateButton from "@/components/GenerateButton";
 import InboxShowcase from "@/components/InboxShowcase";
 import TestSlack from "@/components/TestSlack";
+import PastWeeks from "@/components/PastWeeks";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,25 @@ function lintSummary(week: Awaited<ReturnType<typeof listWeeks>>[number]) {
 }
 
 export default async function Home() {
-  const weeks = await listWeeks();
+  const all = await listWeeks();
+  // Garbage-collect ghost weeks: stuck "generating" with zero posts for over
+  // 45 minutes (leftovers from interrupted runs). They never become content.
+  const STALE_MS = 45 * 60 * 1000;
+  const ghosts = all.filter(
+    (w) =>
+      w.status === "generating" &&
+      w.posts.length === 0 &&
+      Date.now() - new Date(w.createdAt).getTime() > STALE_MS,
+  );
+  for (const g of ghosts) {
+    try {
+      await deleteWeek(g.id);
+    } catch {
+      // best effort
+    }
+  }
+  const ghostIds = new Set(ghosts.map((g) => g.id));
+  const weeks = all.filter((w) => !ghostIds.has(w.id));
   const current = weeks[0];
   const past = weeks.slice(1);
 
@@ -102,12 +121,8 @@ export default async function Home() {
             </div>
 
             {past.length > 0 && (
-              <>
-                <h3 style={{ fontSize: 12, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted-2)", margin: "26px 0 10px" }}>
-                  Past weeks
-                </h3>
-                <div className="grid">
-                  {past.map((w) => {
+              <PastWeeks count={past.length}>
+                {past.map((w) => {
                     const { errors, warns } = lintSummary(w);
                     const approved = w.posts.filter((p) => p.status === "approved").length;
                     const changes = w.posts.filter((p) => p.status === "changes_requested").length;
@@ -126,8 +141,7 @@ export default async function Home() {
                       </Link>
                     );
                   })}
-                </div>
-              </>
+              </PastWeeks>
             )}
           </>
         )}
