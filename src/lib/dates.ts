@@ -20,12 +20,10 @@ export function longLabel(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-// Most recent completed week, Sunday to Saturday, relative to `from`.
-// Used so "next week's content" is researched from last week's news.
+// Research window: the trailing seven days ending today. On the Saturday cron
+// this is Sunday-to-Saturday; on a midweek manual run it stays fresh instead
+// of pointing at an older completed week.
 export function lastWeekRange(from = new Date()): { sunday: Date; saturday: Date } {
-  const d = new Date(from);
-  const day = d.getDay(); // 0 Sun .. 6 Sat
-  const saturday = addDays(d, -((day + 1) % 7)); // most recent Saturday on or before today
-  const sunday = addDays(saturday, -6);
-  return { sunday, saturday };
+  const end = new Date(from);
+  return { sunday: addDays(end, -7), saturday: end };
 }

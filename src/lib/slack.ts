@@ -67,6 +67,11 @@ export async function notifyApproved(week: Week): Promise<boolean> {
   );
 }
 
+// Free-form report delivery (improvement loop).
+export async function notifyReport(text: string): Promise<boolean> {
+  return postSlack(text);
+}
+
 // Connectivity check for the Test Slack button.
 export async function sendTestMessage(): Promise<boolean> {
   return postSlack(

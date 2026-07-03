@@ -743,6 +743,71 @@ Return JSON: { "durable": boolean, "title": string (3 to 6 words), "body": strin
   }
 }
 
+// THE IMPROVEMENT AGENT (the outer loop).
+// Loop engineering: the writer is the maker, the QA gate is the checker, and
+// this agent tunes the rubric itself. Weekly it audits recent output, feedback
+// themes, QA rejections, and lint noise, writes a short report for Waqar, and
+// proposes up to 3 durable rules. Proposals land DISABLED in Instructions so a
+// human approves the rubric change before it steers generation.
+export async function improvementLoop(): Promise<{ report: string; proposed: number }> {
+  const weeks = (await listWeeks()).slice(0, 4);
+  const instructions = await getInstructions();
+  const summary = weeks.map((w) => ({
+    label: w.label,
+    status: w.status,
+    posts: w.posts.map((p) => ({
+      day: p.day,
+      type: p.type,
+      topic: p.topic,
+      status: p.status,
+      feedback: p.history
+        .filter((h) => h.note && h.source !== "system")
+        .map((h) => `${h.source}: ${h.note}`.slice(0, 200)),
+      qaRejections: p.history.filter((h) => h.source === "system").length,
+      lintFlags: (p.lint?.issues || []).map((i) => i.message).slice(0, 4),
+    })),
+  }));
+
+  const res = await completeJSON<{
+    report?: string;
+    proposedRules?: { title?: string; body?: string }[];
+  }>({
+    system:
+      "You are Sunnyvale's improvement agent, the outer loop that makes an AI content engine better every week. You are the skeptical checker of the whole system, not a cheerleader. Respond with valid JSON only.",
+    user: `Audit the recent output of the IAIMS LinkedIn content engine and propose durable improvements.
+
+Recent weeks (newest first):
+${JSON.stringify(summary, null, 1)}
+
+Existing permanent rules (do not duplicate any):
+${instructions.map((i) => `- [${i.enabled ? "on" : "off"}] ${i.title}: ${i.body}`).join("\n") || "(none)"}
+
+Look for: feedback themes that keep repeating, QA rejection patterns, recurring lint flags, hook or topic sameness across weeks, ICP or geography imbalance, anything that still reads AI-generated.
+
+Return JSON:
+{"report": string (plain language for the growth advisor: what worked, what keeps going wrong, what to change next. Max 180 words),
+ "proposedRules": [up to 3 {"title": string (3 to 6 words), "body": string (1 to 3 imperative lines)} that would prevent the recurring problems]}`,
+    maxTokens: 1500,
+  });
+
+  const proposals = (res.proposedRules || []).filter((r) => r?.body?.trim()).slice(0, 3);
+  if (proposals.length) {
+    const list = await getInstructions();
+    for (const r of proposals.reverse()) {
+      list.unshift({
+        id: nanoid(10),
+        title: `Proposed: ${(r.title || "improvement").trim()}`.slice(0, 80),
+        body: r.body!.trim(),
+        source: "learned",
+        enabled: false,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    await saveInstructions(list);
+  }
+  return { report: res.report || "No report produced.", proposed: proposals.length };
+}
+
 // Turn an uploaded file, a link, or an example post into a concise rule.
 export async function extractInstruction(input: {
   kind: "file" | "link" | "example";

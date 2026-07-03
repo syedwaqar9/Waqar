@@ -1,5 +1,6 @@
 import { getInstructions } from "@/lib/store";
 import InstructionsManager from "@/components/InstructionsManager";
+import ImproveButton from "@/components/ImproveButton";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,9 @@ export default async function InstructionsPage() {
           Rules here apply to every post the tool makes. Type a rule, upload a file, paste a link, or
           give an example post. You can optionally limit a rule to one post type or ICP.
         </p>
+        <div style={{ marginBottom: 14 }}>
+          <ImproveButton />
+        </div>
         <InstructionsManager initial={instructions} />
       </div>
     </>

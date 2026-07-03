@@ -15,6 +15,14 @@ const TYPE_LABEL: Record<string, string> = {
   sector_focus: "Sector Focus",
 };
 
+function shortDate(iso: string): string {
+  try {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
 function lintSummary(week: Awaited<ReturnType<typeof listWeeks>>[number]) {
   let errors = 0;
   let warns = 0;
@@ -75,12 +83,20 @@ export default async function Home() {
             <div className="hero">
               <div className="hero-head">
                 <div>
-                  <div className="hero-title">{current.label}</div>
+                  <div className="hero-title">
+                    {current.label}
+                    {current.posts.length > 0 &&
+                      ` · Mon ${shortDate(current.startDate)} to Fri ${shortDate(
+                        current.posts[current.posts.length - 1]?.date || current.startDate,
+                      )}`}
+                  </div>
                   <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
                     {current.posts.filter((p) => p.status === "approved").length} approved ·{" "}
                     {current.posts.filter((p) => p.status === "changes_requested").length} changes requested ·{" "}
                     {current.posts.filter((p) => p.status !== "approved" && p.status !== "changes_requested").length}{" "}
                     awaiting review
+                    {new Date(current.startDate).getTime() + 5 * 86400000 < Date.now() &&
+                      " · these dates have passed, generate next week"}
                   </div>
                 </div>
                 <div className="row">
@@ -97,7 +113,10 @@ export default async function Home() {
                   const last = notes[notes.length - 1];
                   return (
                     <Link key={p.id} href={`/week/${current.id}#post-${p.id}`} className="hero-row">
-                      <span className="hero-day">{p.day}</span>
+                      <span className="hero-day">
+                        {p.day}
+                        <span className="hero-date">{shortDate(p.date)}</span>
+                      </span>
                       <div className="hero-main">
                         <div className="hero-topic">
                           {TYPE_LABEL[p.type] || p.type} · {p.topic || "Untitled"}
