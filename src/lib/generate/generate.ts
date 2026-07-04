@@ -14,7 +14,7 @@ import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
 import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
-import { getInstructions, getWeek, listWeeks, saveInstructions, saveWeek } from "@/lib/store";
+import { getInstructions, getMetrics, getWeek, listWeeks, saveInstructions, saveWeek } from "@/lib/store";
 import { notifyReview } from "@/lib/slack";
 import type {
   ICP,
@@ -752,6 +752,9 @@ Return JSON: { "durable": boolean, "title": string (3 to 6 words), "body": strin
 export async function improvementLoop(): Promise<{ report: string; proposed: number }> {
   const weeks = (await listWeeks()).slice(0, 4);
   const instructions = await getInstructions();
+  const metrics = await getMetrics();
+  const metricFor = (postId: string, date: string) =>
+    metrics.find((m) => m.postId === postId) || metrics.find((m) => !m.postId && m.date === date);
   const summary = weeks.map((w) => ({
     label: w.label,
     status: w.status,
@@ -765,6 +768,17 @@ export async function improvementLoop(): Promise<{ report: string; proposed: num
         .map((h) => `${h.source}: ${h.note}`.slice(0, 200)),
       qaRejections: p.history.filter((h) => h.source === "system").length,
       lintFlags: (p.lint?.issues || []).map((i) => i.message).slice(0, 4),
+      performance: (() => {
+        const m = metricFor(p.id, p.date);
+        return m?.impressions
+          ? {
+              impressions: m.impressions,
+              reactions: m.reactions,
+              comments: m.comments,
+              reposts: m.reposts,
+            }
+          : undefined;
+      })(),
     })),
   }));
 
@@ -782,7 +796,7 @@ ${JSON.stringify(summary, null, 1)}
 Existing permanent rules (do not duplicate any):
 ${instructions.map((i) => `- [${i.enabled ? "on" : "off"}] ${i.title}: ${i.body}`).join("\n") || "(none)"}
 
-Look for: feedback themes that keep repeating, QA rejection patterns, recurring lint flags, hook or topic sameness across weeks, ICP or geography imbalance, anything that still reads AI-generated.
+Look for: feedback themes that keep repeating, QA rejection patterns, recurring lint flags, hook or topic sameness across weeks, ICP or geography imbalance, anything that still reads AI-generated. Where posts carry "performance" (real LinkedIn numbers), weight what actually earned impressions and engagement over theory, and say which post types and hook shapes are winning.
 
 Return JSON:
 {"report": string (plain language for the growth advisor: what worked, what keeps going wrong, what to change next. Max 180 words),

@@ -72,6 +72,46 @@ export async function notifyReport(text: string): Promise<boolean> {
   return postSlack(text);
 }
 
+// Weekday morning: today's approved post, ready to copy and publish.
+export async function notifyDailyPost(week: Week, post: Post): Promise<boolean> {
+  const assetCount = post.format === "carousel" ? post.slides?.length || 7 : 1;
+  const pngs = Array.from(
+    { length: assetCount },
+    (_, i) => `${base()}/api/render?weekId=${week.id}&postId=${post.id}&slide=${i}`,
+  );
+  if (post.status !== "approved") {
+    return postSlack(
+      `Today's post (${post.day}) is NOT approved yet: ${post.topic}\nReview it before posting: ${link(week)}#post-${post.id}`,
+    );
+  }
+  return postSlack(
+    `Time to post (${post.day} 8:30 AM ET): *${post.topic}*\n\n` +
+      `Caption (copy below):\n${post.caption}\n\n${post.hashtags.join(" ")}\n\n` +
+      (post.firstComment ? `First comment (post within the hour):\n${post.firstComment}\n\n` : "") +
+      `${assetCount > 1 ? `${assetCount} slides` : "Image"}: ${pngs.join("\n")}\n` +
+      (post.reshareBy ? `Reminder: Jaya reshares this one.\n` : "") +
+      `${link(week)}#post-${post.id}`,
+  );
+}
+
+// Weekend reminder when the week has not been fully reviewed.
+export async function notifyReviewReminder(
+  week: Week,
+  reviewed: number,
+  total: number,
+): Promise<boolean> {
+  return postSlack(
+    `Hi Jaya, next week's content is still waiting for your review: *${week.label}*\n` +
+      `${reviewedLine(reviewed, total)}\n${reviewerLink(week)}`,
+  );
+}
+
+function reviewedLine(reviewed: number, total: number): string {
+  return reviewed === 0
+    ? `None of the ${total} posts are reviewed yet.`
+    : `${reviewed} of ${total} posts reviewed so far.`;
+}
+
 // Connectivity check for the Test Slack button.
 export async function sendTestMessage(): Promise<boolean> {
   return postSlack(

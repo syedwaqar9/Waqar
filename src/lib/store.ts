@@ -5,7 +5,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import type { Instruction, Post, Week } from "@/lib/types";
+import type { Instruction, Post, PostMetric, Week } from "@/lib/types";
 
 // Read at call time so a freshly added env var is picked up without surprises.
 function useBlob(): boolean {
@@ -227,4 +227,61 @@ export async function getInstructions(): Promise<Instruction[]> {
 export async function saveInstructions(list: Instruction[]): Promise<void> {
   if (useBlob()) await blobWriteInstructions(list);
   else await fsWriteInstructions(list);
+}
+
+// ── Metrics (LinkedIn performance) ───────────────────────────────────────────
+const METRICS_PATH = "config/metrics.json";
+
+async function fsReadMetrics(): Promise<PostMetric[]> {
+  try {
+    return JSON.parse(await fs.readFile(path.join(DATA_DIR, "config", "metrics.json"), "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function fsWriteMetrics(list: PostMetric[]): Promise<void> {
+  await fs.mkdir(path.join(DATA_DIR, "config"), { recursive: true });
+  await fs.writeFile(path.join(DATA_DIR, "config", "metrics.json"), JSON.stringify(list, null, 2), "utf8");
+}
+async function blobReadMetrics(): Promise<PostMetric[]> {
+  try {
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: METRICS_PATH, token: blobToken() });
+    const b = blobs.find((x) => x.pathname === METRICS_PATH) || blobs[0];
+    if (!b) return [];
+    const r = await fetch(`${b.url}?t=${Date.now()}`, { cache: "no-store" });
+    return r.ok ? ((await r.json()) as PostMetric[]) : [];
+  } catch {
+    return [];
+  }
+}
+async function blobWriteMetrics(list: PostMetric[]): Promise<void> {
+  const { put } = await import("@vercel/blob");
+  await put(METRICS_PATH, JSON.stringify(list), {
+    access: BLOB_ACCESS,
+    token: blobToken(),
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
+
+export async function getMetrics(): Promise<PostMetric[]> {
+  return useBlob() ? blobReadMetrics() : fsReadMetrics();
+}
+
+// Merge rows into the store. Key: postId when present, else date+label.
+export async function mergeMetrics(rows: PostMetric[]): Promise<PostMetric[]> {
+  const list = await getMetrics();
+  const key = (m: PostMetric) => m.postId || `${m.date || ""}|${(m.label || "").slice(0, 60)}`;
+  const byKey = new Map(list.map((m) => [key(m), m]));
+  for (const row of rows) {
+    if (!row || (!row.postId && !row.date && !row.label)) continue;
+    const k = key(row);
+    byKey.set(k, { ...byKey.get(k), ...row, updatedAt: new Date().toISOString() });
+  }
+  const merged = [...byKey.values()];
+  if (useBlob()) await blobWriteMetrics(merged);
+  else await fsWriteMetrics(merged);
+  return merged;
 }

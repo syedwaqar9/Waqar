@@ -163,6 +163,20 @@ export interface Fact {
   supersededBy?: string;
 }
 
+// Real LinkedIn performance for one post, imported from CSV or entered by hand.
+export interface PostMetric {
+  postId?: string; // matched to a Sunnyvale post when known
+  date?: string; // ISO day the post went live (join key for CSV rows)
+  label?: string; // free-text identifier from the CSV (url or title)
+  impressions?: number;
+  reactions?: number;
+  comments?: number;
+  reposts?: number;
+  followers?: number; // account-level snapshot, optional
+  profileViews?: number;
+  updatedAt: string;
+}
+
 // A custom rule the generator must follow. Added in the Instructions tab, by
 // typing, uploading a file, pasting a link, or giving an example post.
 export interface Instruction {

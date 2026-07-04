@@ -8,6 +8,14 @@
     {
       "path": "/api/cron/improve",
       "schedule": "0 14 * * 0"
+    },
+    {
+      "path": "/api/cron/daily",
+      "schedule": "15 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron/remind",
+      "schedule": "0 13,23 * * 0"
     }
   ]
 }
