@@ -5,7 +5,7 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import type { Instruction, Post, PostMetric, Week } from "@/lib/types";
+import type { Instruction, KnowledgeEntry, Post, PostMetric, Week } from "@/lib/types";
 
 // Read at call time so a freshly added env var is picked up without surprises.
 function useBlob(): boolean {
@@ -268,6 +268,51 @@ async function blobWriteMetrics(list: PostMetric[]): Promise<void> {
 
 export async function getMetrics(): Promise<PostMetric[]> {
   return useBlob() ? blobReadMetrics() : fsReadMetrics();
+}
+
+// ── Knowledge (the memory layer) ─────────────────────────────────────────────
+const KNOWLEDGE_PATH = "config/knowledge.json";
+
+async function fsReadKnowledge(): Promise<KnowledgeEntry[]> {
+  try {
+    return JSON.parse(await fs.readFile(path.join(DATA_DIR, "config", "knowledge.json"), "utf8"));
+  } catch {
+    return [];
+  }
+}
+async function fsWriteKnowledge(list: KnowledgeEntry[]): Promise<void> {
+  await fs.mkdir(path.join(DATA_DIR, "config"), { recursive: true });
+  await fs.writeFile(path.join(DATA_DIR, "config", "knowledge.json"), JSON.stringify(list, null, 2), "utf8");
+}
+async function blobReadKnowledge(): Promise<KnowledgeEntry[]> {
+  try {
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: KNOWLEDGE_PATH, token: blobToken() });
+    const b = blobs.find((x) => x.pathname === KNOWLEDGE_PATH) || blobs[0];
+    if (!b) return [];
+    const r = await fetch(`${b.url}?t=${Date.now()}`, { cache: "no-store" });
+    return r.ok ? ((await r.json()) as KnowledgeEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+async function blobWriteKnowledge(list: KnowledgeEntry[]): Promise<void> {
+  const { put } = await import("@vercel/blob");
+  await put(KNOWLEDGE_PATH, JSON.stringify(list), {
+    access: BLOB_ACCESS,
+    token: blobToken(),
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+  });
+}
+
+export async function getKnowledge(): Promise<KnowledgeEntry[]> {
+  return useBlob() ? blobReadKnowledge() : fsReadKnowledge();
+}
+export async function saveKnowledge(list: KnowledgeEntry[]): Promise<void> {
+  if (useBlob()) await blobWriteKnowledge(list);
+  else await fsWriteKnowledge(list);
 }
 
 // Merge rows into the store. Key: postId when present, else date+label.

@@ -184,6 +184,38 @@ function frame(p: Palette, inner: string): string {
 // ── Single image post ────────────────────────────────────────────────────────
 export function singleSVG(v: SingleVisual): string {
   const p = palette(v.theme);
+  // Quote-card mode: the spoken line, large, with attribution.
+  if (v.quote) {
+    let inner = eyebrow(v.eyebrow || "ON THE RECORD", p);
+    inner += `<text x="${M - 8}" y="330" font-family="Georgia, serif" font-size="170" fill="${p.accent}" opacity="0.35">“</text>`;
+    const lines = wrap(v.quote, 26).slice(0, 6);
+    const size = fitFont(lines, MAXW, 64, 38);
+    const lh = Math.round(size * 1.18);
+    let y = 340 + size;
+    let svg = "";
+    for (const line of lines) {
+      svg += `<text x="${M}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="800" fill="${p.text}">${esc(
+        line,
+      )}</text>`;
+      y += lh;
+    }
+    inner += svg;
+    if (v.attribution) {
+      inner += `<rect x="${M}" y="${y + 18}" width="46" height="5" rx="2.5" fill="${p.accent}"/>`;
+      inner += `<text x="${M}" y="${y + 58}" font-family="${FONT}" font-size="25" font-weight="700" fill="${p.text}">${esc(
+        v.attribution.split("·")[0].trim(),
+      )}</text>`;
+      const rest = v.attribution.split("·").slice(1).join("·").trim();
+      if (rest) {
+        inner += `<text x="${M}" y="${y + 90}" font-family="${FONT}" font-size="20" font-weight="500" fill="${p.muted}">${esc(
+          rest,
+        )}</text>`;
+      }
+    }
+    inner += brandMark(p);
+    inner += bottomRight(v.sourceLabel || "", p);
+    return frame(p, inner);
+  }
   let inner = eyebrow(v.eyebrow, p);
   const head = headlineBlock(v.headlineWhite || [], v.headlineAccent || [], p, 300, 104, 52);
   inner += head.svg;

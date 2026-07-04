@@ -14,7 +14,17 @@ import { researchWeb } from "@/lib/anthropic";
 import { brandSystemPrompt, POST_JSON_SHAPE } from "@/lib/generate/prompts";
 import { lintPost } from "@/lib/linter";
 import { addDays, isoDate, longLabel, nextMonday, lastWeekRange } from "@/lib/dates";
-import { getInstructions, getMetrics, getWeek, listWeeks, saveInstructions, saveWeek } from "@/lib/store";
+import {
+  getInstructions,
+  getKnowledge,
+  getMetrics,
+  getWeek,
+  listWeeks,
+  saveInstructions,
+  saveKnowledge,
+  saveWeek,
+} from "@/lib/store";
+import type { KnowledgeEntry } from "@/lib/types";
 import { notifyReview } from "@/lib/slack";
 import type {
   ICP,
@@ -70,6 +80,27 @@ function customRulesText(instructions: Instruction[], type: PostType, icps: ICP[
 function rulesBlock(customRules: string): string {
   return customRules
     ? `CUSTOM INSTRUCTIONS FROM THE GROWTH ADVISOR (must follow; these win if they conflict with defaults):\n${customRules}\n\n`
+    : "";
+}
+
+// Compact digest of the memory layer, injected into every generator so the
+// engine can draw on everything ever fed to it.
+function knowledgeDigest(entries: KnowledgeEntry[]): string {
+  const enabled = entries.filter((e) => e.enabled).slice(0, 8);
+  if (!enabled.length) return "";
+  return enabled
+    .map(
+      (e) =>
+        `- ${e.title}${e.source ? ` (${e.source})` : ""}: ${e.summary} Key points: ${e.keyPoints
+          .slice(0, 4)
+          .join("; ")}`,
+    )
+    .join("\n");
+}
+
+function knowledgeBlock(knowledge: string): string {
+  return knowledge
+    ? `COMPANY KNOWLEDGE you may draw on when relevant (quote accurately, attribute to the source, and add a sources entry citing it):\n${knowledge}\n\n`
     : "";
 }
 
@@ -239,6 +270,8 @@ function coerceSingle(raw: Partial<SingleVisual> | undefined, type: PostType): S
     subhead: raw?.subhead,
     cta: raw?.cta,
     sourceLabel: raw?.sourceLabel,
+    quote: raw?.quote,
+    attribution: raw?.attribution,
   };
 }
 
@@ -287,6 +320,7 @@ async function generatePost(
   customRules: string,
   alreadyDrafted: string[] = [],
   qaFeedback = "",
+  knowledge = "",
 ): Promise<Post> {
   const reshareNote = spec.reshareBy
     ? `This is a Jaya reshare. Also write "reshareCommentary": a short first-person line in Jaya Kandaswamy's voice (${ORG.founderTitle}), honest and specific, using "${VOICE.hedges.observation}" for any observational claim.`
@@ -327,7 +361,7 @@ ${
   qaFeedback
     ? `THE QUALITY REVIEWER REJECTED THE PREVIOUS DRAFT. Fix ALL of these before anything else:\n${qaFeedback}\n\n`
     : ""
-}${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
+}${knowledgeBlock(knowledge)}${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const draft = await completeJSON<PostDraft>({
     system: brandSystemPrompt(),
@@ -350,7 +384,12 @@ function layoutQA(post: Post): string[] {
     if (l && l.length > 45) issues.push(`${where}: sourceLabel is ${l.length} chars, hard limit 40: "${l}"`);
   };
   if (post.format === "single") {
-    if (!post.single || (!post.single.headlineWhite?.length && !post.single.headlineAccent?.length)) {
+    if (post.single?.quote) {
+      // Quote card: the quote carries the visual, headlines may be empty.
+      if (post.single.quote.length > 220) {
+        issues.push(`Quote is ${post.single.quote.length} chars, hard limit 200 to render large.`);
+      }
+    } else if (!post.single || (!post.single.headlineWhite?.length && !post.single.headlineAccent?.length)) {
       issues.push("Single image has no headline.");
     } else {
       label(post.single.sourceLabel, "Single image");
@@ -455,6 +494,7 @@ export async function startWeek(opts?: { startDate?: Date }): Promise<Week> {
     source: "auto",
     posts: [],
     createdAt: new Date().toISOString(),
+    targetPosts: 5,
   };
   await saveWeek(week);
   return week;
@@ -482,7 +522,11 @@ export async function runWeek(weekId: string): Promise<void> {
       )
     ).summary;
 
-    const specs = await planWeek(startDate, research, existingTopics);
+    const knowledge = knowledgeDigest(await getKnowledge());
+    const planResearch = knowledge
+      ? `${research}\n\nCompany knowledge available for founder-voice or context posts:\n${knowledge}`
+      : research;
+    const specs = await planWeek(startDate, planResearch, existingTopics);
     week.theme = specs.map((s) => s.geography).filter(Boolean).join(" · ");
     await saveWeek(week);
 
@@ -495,7 +539,7 @@ export async function runWeek(weekId: string): Promise<void> {
       let lastErr = "";
       for (let attempt = 0; attempt < 3 && !post; attempt++) {
         try {
-          post = await generatePost(spec, research, weekId, startDate, rules, draftedHooks);
+          post = await generatePost(spec, research, weekId, startDate, rules, draftedHooks, "", knowledge);
         } catch (e) {
           lastErr = (e as Error).message;
         }
@@ -504,7 +548,7 @@ export async function runWeek(weekId: string): Promise<void> {
       // (with its reasons) until it passes or the round limit is hit.
       if (post) {
         post = await qaGate(post, (feedback) =>
-          generatePost(spec, research, weekId, startDate, rules, draftedHooks, feedback),
+          generatePost(spec, research, weekId, startDate, rules, draftedHooks, feedback, knowledge),
         );
       }
       week.posts.push(
@@ -635,6 +679,7 @@ export async function generateFromUpload(input: {
     "grant_officer",
     "accelerator_university",
   ]);
+  const knowledge = knowledgeDigest(await getKnowledge());
 
   const instruction = `Create an on-brand LinkedIn ${input.format}${
     input.format === "carousel" ? " (7 slides)" : ""
@@ -644,7 +689,7 @@ export async function generateFromUpload(input: {
 - Only include the "sources" array if there is a public source. A private screenshot is not a source.
 ${input.note ? `\nMy note about it: ${input.note}` : ""}
 
-${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
+${knowledgeBlock(knowledge)}${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
 
   const content: unknown[] = [];
   if (input.imageBase64 && input.mediaType === "application/pdf") {
@@ -695,6 +740,192 @@ ${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
   };
   await saveWeek(week);
   return week;
+}
+
+// ── VIDEO / PODCAST INGESTION ────────────────────────────────────────────────
+// A transcript goes in; the founder's strongest moments come out as quote-card
+// posts in her first-person voice, and the whole transcript joins the memory
+// layer so future weeks can draw on it.
+
+export async function saveKnowledgeEntry(input: {
+  kind: KnowledgeEntry["kind"];
+  title?: string;
+  source?: string;
+  text: string;
+}): Promise<KnowledgeEntry> {
+  const parsed = await completeJSON<{ title?: string; summary?: string; keyPoints?: string[] }>({
+    system:
+      "You index material into a company knowledge base for a content team. Respond with valid JSON only.",
+    user: `Summarize this material for reuse in future content. Material${
+      input.title ? ` (working title: ${input.title})` : ""
+    }:
+
+${input.text.slice(0, 48000)}
+
+Return JSON: {"title": string (5 to 10 words), "summary": string (max 100 words, concrete), "keyPoints": [5 to 8 short strings, each a specific claim, story, or position taken]}`,
+    maxTokens: 1200,
+  });
+  const entry: KnowledgeEntry = {
+    id: nanoid(10),
+    kind: input.kind,
+    title: (parsed.title || input.title || "Untitled material").slice(0, 120),
+    source: input.source,
+    summary: parsed.summary || "",
+    keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints.slice(0, 8) : [],
+    content: input.text.slice(0, 60000),
+    enabled: true,
+    createdAt: new Date().toISOString(),
+  };
+  const list = await getKnowledge();
+  list.unshift(entry);
+  await saveKnowledge(list);
+  return entry;
+}
+
+export async function startVideoWeek(title: string, count: number): Promise<Week> {
+  const week: Week = {
+    id: nanoid(10),
+    label: `From podcast · ${title.slice(0, 44)}`,
+    startDate: isoDate(nextMonday()),
+    status: "generating",
+    theme: "Podcast",
+    source: "manual",
+    posts: [],
+    createdAt: new Date().toISOString(),
+    targetPosts: count,
+  };
+  await saveWeek(week);
+  return week;
+}
+
+export async function runVideoIngest(
+  weekId: string,
+  input: { title: string; transcript: string; url?: string; note?: string; count: number },
+): Promise<void> {
+  const week = await getWeek(weekId);
+  if (!week) return;
+  const startDate = new Date(week.startDate);
+  try {
+    // 1. The transcript joins the memory layer first, so even a failed
+    //    generation still leaves the knowledge behind.
+    await saveKnowledgeEntry({
+      kind: "transcript",
+      title: input.title,
+      source: input.url,
+      text: input.transcript,
+    });
+
+    // 2. Extract the strongest moments.
+    const extraction = await completeJSON<{
+      moments?: { quote?: string; context?: string; angle?: string }[];
+    }>({
+      system:
+        "You find the strongest LinkedIn-worthy moments in a founder's podcast transcript. Favor specific claims, contrarian positions, and concrete stories over pleasantries. Respond with valid JSON only.",
+      user: `Transcript of "${input.title}" (the founder speaking is Jaya Kandaswamy):
+
+${input.transcript.slice(0, 55000)}
+${input.note ? `\nThe growth advisor's note: ${input.note}` : ""}
+
+Return JSON: {"moments": [exactly ${input.count} {"quote": string (her words, cleaned of filler, 8 to 28 words, quotable on its own), "context": string (what she was explaining), "angle": string (why this lands on LinkedIn)}]}`,
+      maxTokens: 2500,
+    });
+    const moments = (extraction.moments || []).filter((m) => m?.quote).slice(0, input.count);
+    if (!moments.length) throw new Error("No usable moments found in the transcript.");
+
+    const instructions = await getInstructions();
+    const rules = customRulesText(instructions, "founder_moment", [
+      "grant_officer",
+      "accelerator_university",
+    ]);
+    const shortTitle = input.title.slice(0, 38);
+
+    // 3. One quote-card post per moment, in Jaya's first person, QA-gated.
+    for (const moment of moments) {
+      const spec: DaySpec = {
+        dayIndex: 0,
+        day: "Ad-hoc",
+        type: "founder_moment",
+        format: "single",
+        reshareBy: null,
+        topic: `Podcast: ${(moment.context || moment.quote || "").slice(0, 60)}`,
+        angle: moment.angle || "",
+        geography: "",
+        icps: ["grant_officer", "accelerator_university"],
+      };
+      const writeOnce = (qaFeedback: string) =>
+        generateVideoPost(spec, moment, input, shortTitle, rules, weekId, startDate, qaFeedback);
+      let post: Post | null = null;
+      let lastErr = "";
+      for (let attempt = 0; attempt < 3 && !post; attempt++) {
+        try {
+          post = await writeOnce("");
+        } catch (e) {
+          lastErr = (e as Error).message;
+        }
+      }
+      if (post) post = await qaGate(post, writeOnce);
+      week.posts.push(
+        post ||
+          draftToPost(
+            { caption: `Draft failed to generate: ${lastErr}. Regenerate this post.` },
+            spec,
+            weekId,
+            startDate,
+          ),
+      );
+      await saveWeek(week);
+    }
+
+    week.status = "in_review";
+    await saveWeek(week);
+  } catch (e) {
+    week.status = "in_review";
+    week.theme = `Generation error: ${(e as Error).message}`;
+    await saveWeek(week);
+  }
+}
+
+async function generateVideoPost(
+  spec: DaySpec,
+  moment: { quote?: string; context?: string; angle?: string },
+  input: { title: string; url?: string; note?: string },
+  shortTitle: string,
+  customRules: string,
+  weekId: string,
+  startDate: Date,
+  qaFeedback: string,
+): Promise<Post> {
+  const today = isoDate(new Date());
+  const user = `Create a LinkedIn single-image QUOTE CARD post in Jaya Kandaswamy's FIRST-PERSON voice (I, we). She said this on the podcast "${input.title}".
+
+The moment:
+Her words: "${moment.quote}"
+Context: ${moment.context || ""}
+Why it lands: ${moment.angle || ""}
+${input.note ? `Growth advisor's note: ${input.note}` : ""}
+
+Requirements:
+- The caption is Jaya speaking in first person: reflective, specific, no third-person references to herself. Mention the podcast by name once, naturally.
+${input.url ? `- Include the listen link on its own line before the CTA: ${input.url}` : ""}
+- The visual is a quote card. Set single.quote to her line (verbatim where possible, under 200 characters), single.attribution to "Jaya Kandaswamy · ${shortTitle}", eyebrow "ON THE RECORD", theme "dark", sourceLabel "${shortTitle.toUpperCase()}". Leave headlineWhite and headlineAccent as empty arrays. No cta on the visual.
+- sources: ${
+    input.url
+      ? `[{"claim": "Said on ${input.title.slice(0, 60)}", "url": "${input.url}", "publisher": "${shortTitle}", "verifiedAt": "${today}"}]`
+      : "[]"
+  }
+
+${
+  qaFeedback
+    ? `THE QUALITY REVIEWER REJECTED THE PREVIOUS DRAFT. Fix ALL of these before anything else:\n${qaFeedback}\n\n`
+    : ""
+}${rulesBlock(customRules)}${POST_JSON_SHAPE}`;
+
+  const draft = await completeJSON<PostDraft>({
+    system: brandSystemPrompt(),
+    user,
+    maxTokens: 4500,
+  });
+  return draftToPost(draft, spec, weekId, startDate);
 }
 
 // Minimal content-block type for the multimodal call.

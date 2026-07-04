@@ -93,10 +93,14 @@ export default async function WeekPage({
               <div style={{ flex: 1 }}>
                 <div className="loader-title">Building this week</div>
                 <div className="loader-stage">
-                  Drafted {week.posts.length} of 5. You can leave this page, it keeps building in the background.
+                  Drafted {week.posts.length} of {week.targetPosts ?? 5}. You can leave this page, it
+                  keeps building in the background.
                 </div>
                 <div className="bar">
-                  <div className="bar-fill" style={{ width: `${Math.max(8, (week.posts.length / 5) * 100)}%` }} />
+                  <div
+                    className="bar-fill"
+                    style={{ width: `${Math.max(8, (week.posts.length / (week.targetPosts ?? 5)) * 100)}%` }}
+                  />
                 </div>
               </div>
             </div>

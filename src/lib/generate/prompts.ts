@@ -92,7 +92,9 @@ export const POST_JSON_SHAPE = `Return JSON with this shape:
     "headlineAccent": [string],
     "subhead": string,
     "cta": string,
-    "sourceLabel": string
+    "sourceLabel": string,
+    "quote": string,                // quote-card posts only: the spoken line
+    "attribution": string           // quote-card posts only: "Name · Show"
   },
   "slides": [                       // include ONLY for carousel format, exactly 7
     {

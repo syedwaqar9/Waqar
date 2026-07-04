@@ -74,6 +74,9 @@ export interface SingleVisual {
   subhead?: string;
   cta?: string;
   sourceLabel?: string;
+  // Quote-card mode (podcast/video posts): the spoken line, rendered large.
+  quote?: string;
+  attribution?: string;
 }
 
 export interface LintIssue {
@@ -145,6 +148,21 @@ export interface Week {
   theme: string;
   source: "auto" | "manual";
   posts: Post[];
+  createdAt: string;
+  targetPosts?: number; // how many posts this run aims for (default 5)
+}
+
+// THE MEMORY LAYER. Everything ingested (transcripts, links, documents, notes)
+// becomes a permanent knowledge entry the weekly engine can draw on and cite.
+export interface KnowledgeEntry {
+  id: string;
+  kind: "transcript" | "link" | "document" | "note";
+  title: string;
+  source?: string; // url or filename
+  summary: string;
+  keyPoints: string[];
+  content: string; // trimmed full text
+  enabled: boolean;
   createdAt: string;
 }
 
