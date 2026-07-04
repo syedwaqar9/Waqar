@@ -9,17 +9,17 @@
 /* shadcn token names mapped to the Sunnyvale palette, so ui components
    (bg-muted, border-border, from-background...) blend into the app. */
 @theme {
-  --color-background: #0b0b0f;
-  --color-foreground: #ededf1;
-  --color-muted: #15151c;
-  --color-muted-foreground: #9494a0;
-  --color-border: #24242e;
+  --color-background: #000000;
+  --color-foreground: #ffffff;
+  --color-muted: #121215;
+  --color-muted-foreground: #a3a3ad;
+  --color-border: #26262b;
   --color-input: #2e2e3a;
-  --color-ring: #6c6cf2;
+  --color-ring: #fafafa;
   --color-card: #101015;
   --color-card-foreground: #ededf1;
-  --color-primary: #6c6cf2;
-  --color-primary-foreground: #ffffff;
+  --color-primary: #fafafa;
+  --color-primary-foreground: #0b0b0f;
   --color-secondary: #1a1a22;
   --color-secondary-foreground: #ededf1;
   --color-accent: #1a1a22;
@@ -38,15 +38,15 @@
 }
 
 :root {
-  --bg: #0b0b0f;
-  --panel: #101015;
-  --panel-2: #15151c;
-  --panel-3: #1a1a22;
-  --border: #24242e;
-  --border-2: #2e2e3a;
-  --text: #ededf1;
-  --muted: #9494a0;
-  --muted-2: #6b6b77;
+  --bg: #000000;
+  --panel: #0a0a0c;
+  --panel-2: #121215;
+  --panel-3: #18181c;
+  --border: #26262b;
+  --border-2: #35353b;
+  --text: #ffffff;
+  --muted: #a3a3ad;
+  --muted-2: #71717a;
   /* Monochrome system: black, white, grays only. */
   --accent: #fafafa;
   --accent-2: #a1a1aa;

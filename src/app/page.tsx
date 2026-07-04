@@ -85,7 +85,10 @@ export default async function Home() {
                 <div>
                   <div className="hero-title">
                     {current.label}
-                    {current.posts.length > 0 &&
+                    {/* Week ranges describe the Mon-Fri publishing schedule, which
+                        only applies to generated weeks, not ad-hoc uploads. */}
+                    {current.source === "auto" &&
+                      current.posts.length > 0 &&
                       ` · Mon ${shortDate(current.startDate)} to Fri ${shortDate(
                         current.posts[current.posts.length - 1]?.date || current.startDate,
                       )}`}
@@ -95,7 +98,8 @@ export default async function Home() {
                     {current.posts.filter((p) => p.status === "changes_requested").length} changes requested ·{" "}
                     {current.posts.filter((p) => p.status !== "approved" && p.status !== "changes_requested").length}{" "}
                     awaiting review
-                    {new Date(current.startDate).getTime() + 5 * 86400000 < Date.now() &&
+                    {current.source === "auto" &&
+                      new Date(current.startDate).getTime() + 5 * 86400000 < Date.now() &&
                       " · these dates have passed, generate next week"}
                   </div>
                 </div>
@@ -115,7 +119,7 @@ export default async function Home() {
                     <Link key={p.id} href={`/week/${current.id}#post-${p.id}`} className="hero-row">
                       <span className="hero-day">
                         {p.day}
-                        <span className="hero-date">{shortDate(p.date)}</span>
+                        {current.source === "auto" && <span className="hero-date">{shortDate(p.date)}</span>}
                       </span>
                       <div className="hero-main">
                         <div className="hero-topic">

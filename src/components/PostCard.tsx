@@ -112,7 +112,7 @@ export default function PostCard({
         <span className="day">{post.day}</span>
         <span className="type">
           {TYPE_LABEL[post.type] || post.type}
-          {post.date ? ` · ${post.date}` : ""}
+          {post.date && post.day !== "Ad-hoc" ? ` · ${post.date}` : ""}
         </span>
         <span className="chip">{post.format}</span>
         {post.reshareBy && <span className="chip reshare">↗ Jaya reshare</span>}

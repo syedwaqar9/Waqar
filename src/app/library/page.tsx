@@ -77,7 +77,7 @@ export default async function LibraryPage() {
                       </Link>
                     </div>
                   </div>
-                  {dup[i] && <span className="chip" style={{ color: "var(--red)", borderColor: "#4a1f1f" }}>possible duplicate</span>}
+                  {dup[i] && <span className="chip" style={{ color: "#fafafa", borderColor: "#71717a", fontWeight: 700 }}>possible duplicate</span>}
                 </div>
                 {it.post.hook && (
                   <div className="caption" style={{ marginTop: 8 }}>
