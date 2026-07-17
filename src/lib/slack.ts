@@ -48,23 +48,11 @@ export async function notifyReview(week: Week): Promise<boolean> {
   );
 }
 
-// Jaya approved one post: keep Waqar in the loop as it happens.
-export async function notifyPostApproved(
-  week: Week,
-  post: Post,
-  approvedCount: number,
-  total: number,
-): Promise<boolean> {
-  return postSlack(
-    `Jaya approved ${post.day} (${post.topic}). ${approvedCount}/${total} approved for ${week.label}.\n${link(week)}`,
-  );
-}
-
-// Whole week approved: Waqar schedules it on LinkedIn.
+// Whole week approved: the one review notification that goes to Slack.
+// Per-action activity (approvals, change requests) stays in the product's
+// Activity feed by design.
 export async function notifyApproved(week: Week): Promise<boolean> {
-  return postSlack(
-    `All posts approved and ready to schedule: *${week.label}*\n${link(week)}`,
-  );
+  return postSlack(`Approved: *${week.label}*\n${link(week)}`);
 }
 
 // Free-form report delivery (improvement loop).
@@ -94,22 +82,11 @@ export async function notifyDailyPost(week: Week, post: Post): Promise<boolean> 
   );
 }
 
-// Weekend reminder when the week has not been fully reviewed.
-export async function notifyReviewReminder(
-  week: Week,
-  reviewed: number,
-  total: number,
-): Promise<boolean> {
+// Weekend reminder: says plainly how many posts still need her approval.
+export async function notifyReviewReminder(week: Week, unapproved: number): Promise<boolean> {
   return postSlack(
-    `Hi Jaya, next week's content is still waiting for your review: *${week.label}*\n` +
-      `${reviewedLine(reviewed, total)}\n${reviewerLink(week)}`,
+    `Hi Jaya, ${unapproved} post${unapproved > 1 ? "s are" : " is"} not approved yet for *${week.label}*.\n${reviewerLink(week)}`,
   );
-}
-
-function reviewedLine(reviewed: number, total: number): string {
-  return reviewed === 0
-    ? `None of the ${total} posts are reviewed yet.`
-    : `${reviewed} of ${total} posts reviewed so far.`;
 }
 
 // Connectivity check for the Test Slack button.

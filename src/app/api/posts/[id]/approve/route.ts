@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWeek, saveWeek } from "@/lib/store";
-import { notifyApproved, notifyPostApproved } from "@/lib/slack";
+import { notifyApproved } from "@/lib/slack";
 
 export async function POST(
   req: NextRequest,
@@ -15,19 +15,23 @@ export async function POST(
     const post = week.posts.find((p) => p.id === id);
     if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
     const wasApproved = week.status === "approved";
-    post.status = "approved";
-    const approvedCount = week.posts.filter((p) => p.status === "approved").length;
+    if (post.status !== "approved") {
+      post.status = "approved";
+      // Approvals are logged for the in-product Activity feed, never Slacked.
+      post.history.push({
+        at: new Date().toISOString(),
+        source: by === "jaya" ? "jaya" : "waqar",
+        action: "approved",
+      });
+    }
 
     if (week.posts.every((p) => p.status === "approved")) {
       week.status = "approved";
       await saveWeek(week);
+      // The one Slack message about review: the week is approved.
       if (!wasApproved) await notifyApproved(week);
     } else {
       await saveWeek(week);
-      // Jaya's individual approvals ping Waqar as they happen.
-      if (by === "jaya") {
-        await notifyPostApproved(week, post, approvedCount, week.posts.length);
-      }
     }
     return NextResponse.json({ ok: true, weekStatus: week.status });
   } catch (e) {

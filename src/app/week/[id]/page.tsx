@@ -67,7 +67,7 @@ export default async function WeekPage({
           {!reviewer && <CopyLink />}
           {!reviewer && <SendToJaya weekId={week.id} />}
           {week.posts.length > 0 && week.status !== "approved" && week.status !== "generating" && (
-            <ApproveAll weekId={week.id} />
+            <ApproveAll weekId={week.id} reviewer={reviewer} />
           )}
           {week.posts.length > 0 && (
             <span className="chip">

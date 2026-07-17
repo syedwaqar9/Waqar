@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function ApproveAll({ weekId }: { weekId: string }) {
+export default function ApproveAll({ weekId, reviewer = false }: { weekId: string; reviewer?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function run() {
     setBusy(true);
     try {
-      await fetch(`/api/weeks/${weekId}/approve-all`, { method: "POST" });
+      await fetch(`/api/weeks/${weekId}/approve-all`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ by: reviewer ? "jaya" : "waqar" }),
+      });
       router.refresh();
     } finally {
       setBusy(false);

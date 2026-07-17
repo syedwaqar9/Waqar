@@ -23,6 +23,19 @@ function shortDate(iso: string): string {
   }
 }
 
+function when(at: string): string {
+  try {
+    return new Date(at).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 function lintSummary(week: Awaited<ReturnType<typeof listWeeks>>[number]) {
   let errors = 0;
   let warns = 0;
@@ -57,6 +70,27 @@ export default async function Home() {
   const weeks = all.filter((w) => !ghostIds.has(w.id));
   const current = weeks[0];
   const past = weeks.slice(1);
+
+  // Activity feed: every review action, in the product instead of Slack.
+  const activity = weeks
+    .flatMap((w) =>
+      w.posts.flatMap((p) =>
+        p.history
+          .filter((h) => h.source !== "system" && (h.action === "approved" || h.note))
+          .map((h) => ({
+            at: h.at,
+            actor: h.source === "jaya" ? "Jaya" : "Waqar",
+            kind: h.action === "approved" ? ("approved" as const) : ("changes" as const),
+            note: h.note,
+            day: p.day,
+            topic: p.topic,
+            weekId: w.id,
+            postId: p.id,
+          })),
+      ),
+    )
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, 8);
 
   return (
     <>
@@ -142,6 +176,47 @@ export default async function Home() {
                 </div>
               )}
             </div>
+
+            {activity.length > 0 && (
+              <div style={{ marginTop: 22 }}>
+                <h3
+                  style={{
+                    fontSize: 12,
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                    color: "var(--muted-2)",
+                    margin: "0 0 8px",
+                  }}
+                >
+                  Activity
+                </h3>
+                <div className="hero" style={{ padding: "6px 20px" }}>
+                  {activity.map((a, i) => (
+                    <Link
+                      key={`${a.postId}-${a.at}-${i}`}
+                      href={`/week/${a.weekId}#post-${a.postId}`}
+                      className="hero-row"
+                      style={i === 0 ? { borderTop: "none" } : undefined}
+                    >
+                      <span className="hero-day" style={{ width: 130 }}>
+                        {when(a.at)}
+                      </span>
+                      <div className="hero-main">
+                        <div className="hero-topic">
+                          <strong style={{ color: "var(--text)" }}>{a.actor}</strong>{" "}
+                          {a.kind === "approved" ? "approved" : "requested changes on"} {a.day} ·{" "}
+                          {(a.topic || "").slice(0, 60)}
+                        </div>
+                        {a.note && <div className="hero-note">“{a.note}”</div>}
+                      </div>
+                      <span className={`chip ${a.kind === "approved" ? "s-approved" : "s-changes_requested"}`}>
+                        {a.kind === "approved" ? "approved" : "changes"}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {past.length > 0 && (
               <PastWeeks count={past.length}>

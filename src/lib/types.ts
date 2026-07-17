@@ -103,6 +103,7 @@ export interface Revision {
   source: "system" | "jaya" | "waqar";
   note?: string;
   beforeCaption?: string;
+  action?: "approved"; // marks review events that are not text notes
 }
 
 export interface Post {

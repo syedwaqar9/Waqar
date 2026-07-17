@@ -25,12 +25,10 @@ export async function GET(req: NextRequest) {
   if (!latest || latest.status === "approved") {
     return NextResponse.json({ ok: true, skipped: true });
   }
-  const reviewed = latest.posts.filter(
-    (p) => p.status === "approved" || p.status === "changes_requested",
-  ).length;
-  if (reviewed === latest.posts.length) {
+  const unapproved = latest.posts.filter((p) => p.status !== "approved").length;
+  if (unapproved === 0) {
     return NextResponse.json({ ok: true, skipped: true });
   }
-  await notifyReviewReminder(latest, reviewed, latest.posts.length);
+  await notifyReviewReminder(latest, unapproved);
   return NextResponse.json({ ok: true, reminded: true });
 }
